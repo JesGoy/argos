@@ -1,0 +1,730 @@
+# Argos App - Development Rules for AI Assistants
+
+## Project Overview
+Next.js 16 application for inventory control management with Clean Architecture and SOLID principles. Argos handles product inventory, stock management, warehouse operations, suppliers, and inventory transactions.
+
+## Tech Stack
+- **Framework**: Next.js 16 (App Router)
+- **Language**: TypeScript (strict mode)
+- **Database**: PostgreSQL (Neon serverless recommended)
+- **ORM**: Drizzle ORM
+- **Auth**: JWT with jose + custom session management
+- **Styling**: Tailwind CSS v4
+- **Validation**: Zod
+- **Hashing**: bcryptjs
+
+## Architecture Layers (Clean Architecture)
+
+### 1. Domain Layer (`src/core/domain/`)
+**Purpose**: Pure business logic, framework-agnostic.
+
+**Rules**:
+- NO external dependencies (no imports from infra, app, or frameworks)
+- Define domain entities in `entities/`
+- Define domain-specific errors in `errors/`
+- Keep entities simple, focused on data structure
+- Use TypeScript types/interfaces for entities
+- Error classes must extend Error and include meaningful codes
+
+**Inventory Domain Entities**:
+- `Product`: Core product information
+- `Warehouse`: Storage locations
+- `InventoryItem`: Stock levels per product per warehouse
+- `Transaction`: Stock movements (in/out)
+- `Supplier`: Provider information
+- `User`: System users with roles
+
+**Example**:
+```typescript
+// ✅ Good
+export interface Product {
+  id: string;
+  sku: string;
+  name: string;
+  description?: string;
+  category: string;
+  unit: 'pcs' | 'kg' | 'liter' | 'meter';
+  minStock: number;
+  reorderPoint: number;
+  createdAt: Date;
+}
+
+export interface InventoryItem {
+  id: string;
+  productId: string;
+  warehouseId: string;
+  quantity: number;
+  lastUpdated: Date;
+}
+
+export class InsufficientStockError extends Error {
+  constructor(available: number, requested: number) {
+    super(`Stock insuficiente. Disponible: ${available}, Solicitado: ${requested}`);
+    this.name = 'InsufficientStockError';
+  }
+}
+
+export class ProductNotFoundError extends Error {
+  constructor(productId: string) {
+    super(`Producto no encontrado: ${productId}`);
+    this.name = 'ProductNotFoundError';
+  }
+}
+
+// ❌ Bad - importing from infra
+import { productTable } from '@/infra/db/schema';
+```
+
+### 2. Application Layer (`src/core/application/`)
+**Purpose**: Use cases (business operations) and contracts (ports).
+
+**Structure**:
+- `ports/`: Interfaces (repositories, services) - contracts only
+- `usecases/`: Business logic orchestration **organized by entity/domain**
+
+**Rules for Ports**:
+- Define repository interfaces as TypeScript interfaces
+- NO implementation details
+- Use domain entities as types
+- Each repository = one interface file
+- Naming: `{Entity}Repository.ts` (e.g., `ProductRepository.ts`, `InventoryRepository.ts`)
+
+**Rules for Use Cases**:
+- One class per use case
+- Constructor dependency injection (ports via deps object)
+- Execute method returns domain entities or throws domain errors
+- NO direct DB/framework imports
+- Naming: `{Action}{Entity}.ts` (e.g., `CreateProduct.ts`, `RegisterStockIn.ts`, `TransferStock.ts`)
+- Use descriptive input/output types
+- **Organization**: Group use cases by entity in subfolders for better organization
+  - Example structure:
+    ```
+    usecases/
+      products/
+        CreateProduct.ts
+        UpdateProduct.ts
+        DeleteProduct.ts
+        GetProducts.ts
+        GetProductById.ts
+      conversations/
+        CreateConversation.ts
+        GetConversationHistory.ts
+        DeleteConversation.ts
+      ai/
+        ProcessAICommand.ts
+      inventory/
+        RegisterStockIn.ts
+        RegisterStockOut.ts
+        TransferStock.ts
+    ```
+
+**Inventory Use Cases Examples**:
+- `CreateProduct`: Register new products
+- `UpdateProduct`: Modify product information
+- `RegisterStockIn`: Add stock to inventory
+- `RegisterStockOut`: Remove stock from inventory
+- `TransferStock`: Move stock between warehouses
+- `GetLowStockProducts`: Alert products below reorder point
+- `GetInventoryReport`: Generate inventory reports
+- `CreateSupplier`: Register suppliers
+- `RecordPurchaseOrder`: Register incoming stock from suppliers
+
+**Example**:
+```typescript
+// ✅ Good - Port
+export interface ProductRepository {
+  findById(id: string): Promise<Product | null>;
+  findBySku(sku: string): Promise<Product | null>;
+  findAll(): Promise<Product[]>;
+  findLowStock(): Promise<Product[]>;
+  create(product: Omit<Product, 'id' | 'createdAt'>): Promise<Product>;
+  update(id: string, product: Partial<Product>): Promise<void>;
+}
+
+export interface InventoryRepository {
+  findByProductAndWarehouse(productId: string, warehouseId: string): Promise<InventoryItem | null>;
+  updateQuantity(productId: string, warehouseId: string, quantity: number): Promise<void>;
+  getStockLevel(productId: string): Promise<number>;
+}
+
+// ✅ Good - Use Case
+export class RegisterStockIn {
+  constructor(
+    private readonly deps: {
+      products: ProductRepository;
+      inventory: InventoryRepository;
+      transactions: TransactionRepository;
+    }
+  ) {}
+
+  async execute(input: RegisterStockInInput): Promise<Transaction> {
+    const product = await this.deps.products.findById(input.productId);
+    if (!product) throw new ProductNotFoundError(input.productId);
+    
+    const currentStock = await this.deps.inventory.findByProductAndWarehouse(
+      input.productId,
+      input.warehouseId
+    );
+    
+    const newQuantity = (currentStock?.quantity ?? 0) + input.quantity;
+    await this.deps.inventory.updateQuantity(input.productId, input.warehouseId, newQuantity);
+    
+    return await this.deps.transactions.create({
+      type: 'in',
+      productId: input.productId,
+      warehouseId: input.warehouseId,
+      quantity: input.quantity,
+      userId: input.userId,
+      notes: input.notes,
+    });
+  }
+}
+
+// ❌ Bad - importing DB directly
+import { db } from '@/infra/db/client';
+```
+
+### 3. Infrastructure Layer (`src/infra/`)
+**Purpose**: Implementations of ports, external services, DB access.
+
+**Structure**:
+- `repositories/`: Drizzle implementations of repository ports
+- `db/`: Database client and schema (Drizzle)
+- `security/`: Hash service, JWT, session management
+- `validation/`: Zod schemas for input validation
+- `container/`: Dependency injection factories
+
+**Rules for Repositories**:
+- Implement application port interfaces
+- Use Drizzle ORM for queries
+- Naming: `{Entity}RepositoryDrizzle.ts`
+- Map DB rows to domain entities
+- Handle null/undefined: prefer `undefined` over `null` in return types (use `?? undefined`)
+- Use typed SQL conditions: `SQL[]` from `drizzle-orm`, not `any[]`
+
+**Rules for Validation**:
+- Use Zod schemas in `validation/`
+- One file per domain concept (e.g., `product.ts`, `inventory.ts`, `transaction.ts`)
+- Export both schema and inferred type
+- Validate SKU format, quantities (positive numbers), dates
+
+**Rules for Container**:
+- Factory functions to wire dependencies
+- Naming: `make{UseCase}()` (e.g., `makeCreateProduct()`, `makeRegisterStockIn()`)
+- Instantiate repos and services, inject into use case
+- Organize exports by domain: `container/products.ts`, `container/inventory.ts`, `container/auth.ts`
+
+**Example**:
+```typescript
+// ✅ Good - Repository
+export class ProductRepositoryDrizzle implements ProductRepository {
+  async findBySku(sku: string): Promise<Product | null> {
+    const db = getDb();
+    const rows = await db
+      .select()
+      .from(productTable)
+      .where(eq(productTable.sku, sku))
+      .limit(1);
+    
+    const row = rows[0];
+    if (!row) return null;
+    
+    return {
+      id: String(row.id),
+      sku: row.sku,
+      name: row.name,
+      description: row.description ?? undefined,
+      category: row.category,
+      unit: row.unit,
+      minStock: row.minStock,
+      reorderPoint: row.reorderPoint,
+      createdAt: row.createdAt,
+    };
+  }
+
+  async findLowStock(): Promise<Product[]> {
+    const db = getDb();
+    const rows = await db
+      .select()
+      .from(productTable)
+      .leftJoin(inventoryTable, eq(productTable.id, inventoryTable.productId))
+      .where(sql`${inventoryTable.quantity} <= ${productTable.reorderPoint}`);
+    
+    return rows.map(row => this.mapToEntity(row.Product));
+  }
+}
+
+// ✅ Good - Container
+export function makeRegisterStockIn() {
+  const products = new ProductRepositoryDrizzle();
+  const inventory = new InventoryRepositoryDrizzle();
+  const transactions = new TransactionRepositoryDrizzle();
+  return new RegisterStockIn({ products, inventory, transactions });
+}
+
+// ❌ Bad - Business logic in repository
+async registerStockIn(productId: string, quantity: number) {
+  // Don't check reorder points here - that's use case logic
+  const product = await ...;
+  if (product.quantity < product.reorderPoint) sendAlert();
+}
+```
+
+### 4. Presentation Layer (`src/app/`, `src/components/`)
+**Purpose**: Next.js pages, layouts, components, server actions.
+
+**Rules for Server Actions** (`actions.ts`):
+- Always `'use server';` at top
+- Call use case via container factory
+- Validate input with Zod schemas
+- Catch domain errors and return user-friendly messages
+- Return types: `Promise<void>` for form actions, or `Promise<{ error?: string; success?: boolean; data?: T }>`
+- Use `redirect()` or `revalidatePath()` after mutations
+- Session checks: `getSession()` then validate role if needed
+
+**Rules for Pages**:
+- Server Components by default
+- Fetch session in protected routes: `getSession()` + `redirect('/login')` if null
+- Call use cases for data (via container)
+- Pass data as props to Client Components
+- Mark dynamic routes: `export const dynamic = 'force-dynamic';`
+
+**Rules for Client Components**:
+- Mark with `'use client';`
+- Use for interactivity (forms with `useActionState`, state, events)
+- Receive data from Server Component parents
+- Keep business logic in use cases, not in components
+
+**Inventory UI Patterns**:
+- Product list with search/filter
+- Stock level indicators (low stock warnings in red/yellow)
+- Transaction history tables
+- Dashboard with key metrics (total products, low stock count, recent transactions)
+- Forms for stock in/out with quantity validation
+
+**Example**:
+```typescript
+// ✅ Good - Server Action
+'use server';
+export async function registerStockInAction(
+  _prevState: StockInState,
+  formData: FormData
+): Promise<StockInState> {
+  const session = await getSession();
+  if (!session) redirect('/login');
+  
+  const parsed = stockInSchema.safeParse({
+    productId: formData.get('productId'),
+    warehouseId: formData.get('warehouseId'),
+    quantity: Number(formData.get('quantity')),
+    notes: formData.get('notes'),
+  });
+  
+  if (!parsed.success) return { fieldErrors: parsed.error.flatten().fieldErrors };
+  
+  try {
+    const uc = makeRegisterStockIn();
+    const transaction = await uc.execute({ ...parsed.data, userId: session.userId });
+    revalidatePath('/inventory');
+    return { success: true, data: transaction };
+  } catch (err) {
+    if (err instanceof ProductNotFoundError) return { error: err.message };
+    if (err instanceof InsufficientStockError) return { error: err.message };
+    return { error: 'Error al registrar entrada de stock' };
+  }
+}
+
+// ✅ Good - Page
+export default async function InventoryPage() {
+  const session = await getSession();
+  if (!session) redirect('/login');
+  
+  const getLowStock = makeGetLowStockProducts();
+  const lowStockProducts = await getLowStock.execute();
+  
+  return (
+    <div>
+      <h1>Inventario</h1>
+      <LowStockAlert products={lowStockProducts} />
+      <InventoryList />
+    </div>
+  );
+}
+
+// ❌ Bad - Business logic in component
+function StockInForm() {
+  const handleSubmit = async () => {
+    const newQuantity = currentStock + quantity; // NO - use case should do this
+    await db.update(...); // NO - repository should do this
+  };
+}
+```
+
+## Database & Schema (Drizzle)
+
+**Rules**:
+- Schema in `src/infra/db/schema.ts`
+- Use `pgTable`, `pgEnum` for tables and enums
+- Naming: PascalCase for table variables (e.g., `productTable`, `warehouseTable`, `inventoryTable`)
+- SQL names: match variable names without "Table" suffix (e.g., `'Product'`, `'Warehouse'`)
+- Foreign keys: `references(() => otherTable.id, { onDelete: 'cascade' })`
+- Indexes: use `index()` and `uniqueIndex()` for SKUs, product-warehouse combinations
+- Timestamps: `createdAt`, `updatedAt` for audit trail
+- Migrations: generate with `npm run drizzle:generate`, apply with `npm run drizzle:push`
+- Never commit raw database URLs; use `process.env.DATABASE_URL`
+
+**Inventory Schema Example**:
+```typescript
+export const unitEnum = pgEnum('unit', ['pcs', 'kg', 'liter', 'meter', 'box']);
+export const transactionTypeEnum = pgEnum('transaction_type', ['in', 'out', 'transfer', 'adjustment']);
+export const userRoleEnum = pgEnum('user_role', ['admin', 'warehouse_manager', 'operator', 'viewer']);
+
+export const productTable = pgTable('Product', {
+  id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+  sku: varchar('sku', { length: 50 }).notNull().unique(),
+  name: varchar('name', { length: 200 }).notNull(),
+  description: text('description'),
+  category: varchar('category', { length: 100 }).notNull(),
+  unit: unitEnum('unit').notNull().default('pcs'),
+  minStock: integer('min_stock').notNull().default(0),
+  reorderPoint: integer('reorder_point').notNull().default(10),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  skuIdx: uniqueIndex('product_sku_idx').on(table.sku),
+  categoryIdx: index('product_category_idx').on(table.category),
+}));
+
+export const warehouseTable = pgTable('Warehouse', {
+  id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+  code: varchar('code', { length: 20 }).notNull().unique(),
+  name: varchar('name', { length: 100 }).notNull(),
+  location: text('location'),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+export const inventoryTable = pgTable('Inventory', {
+  id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+  productId: integer('product_id').notNull().references(() => productTable.id, { onDelete: 'cascade' }),
+  warehouseId: integer('warehouse_id').notNull().references(() => warehouseTable.id, { onDelete: 'cascade' }),
+  quantity: integer('quantity').notNull().default(0),
+  lastUpdated: timestamp('last_updated').defaultNow(),
+}, (table) => ({
+  productWarehouseIdx: uniqueIndex('inventory_product_warehouse_idx').on(table.productId, table.warehouseId),
+}));
+
+export const transactionTable = pgTable('Transaction', {
+  id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+  type: transactionTypeEnum('type').notNull(),
+  productId: integer('product_id').notNull().references(() => productTable.id),
+  warehouseId: integer('warehouse_id').notNull().references(() => warehouseTable.id),
+  quantity: integer('quantity').notNull(),
+  userId: integer('user_id').notNull().references(() => userTable.id),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => ({
+  productIdx: index('transaction_product_idx').on(table.productId),
+  dateIdx: index('transaction_date_idx').on(table.createdAt),
+}));
+
+export const supplierTable = pgTable('Supplier', {
+  id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+  code: varchar('code', { length: 20 }).notNull().unique(),
+  name: varchar('name', { length: 200 }).notNull(),
+  contactName: varchar('contact_name', { length: 100 }),
+  email: varchar('email', { length: 100 }),
+  phone: varchar('phone', { length: 20 }),
+  address: text('address'),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+export const userTable = pgTable('User', {
+  id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+  username: varchar('username', { length: 50 }).notNull().unique(),
+  email: varchar('email', { length: 100 }).notNull().unique(),
+  passwordHash: text('password_hash').notNull(),
+  role: userRoleEnum('role').notNull().default('viewer'),
+  fullName: varchar('full_name', { length: 100 }),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+```
+
+## Session & Auth
+
+**Flow**:
+1. User submits login form → `loginAction` (server action)
+2. `loginAction` validates with Zod → calls `LoginUser` use case
+3. Use case checks credentials via `UserRepository` + `HashService`
+4. On success, `createSession({ userId, username, email, role })` creates JWT
+5. JWT stored in httpOnly cookie
+6. Protected routes call `getSession()` to verify JWT and get session data
+
+**Session Data**:
+```typescript
+type SessionData = {
+  userId: number;
+  username: string;
+  email: string;
+  role: 'admin' | 'warehouse_manager' | 'operator' | 'viewer';
+};
+```
+
+**Role-based Access**:
+- **Admin**: Full access to all features, user management, system configuration
+- **Warehouse Manager**: Manage products, suppliers, approve stock adjustments
+- **Operator**: Register stock in/out, view inventory, create transactions
+- **Viewer**: Read-only access to reports and inventory levels
+
+**Access Control in Pages**:
+```typescript
+const session = await getSession();
+if (!session) redirect('/login');
+if (session.role === 'viewer' && isWriteOperation) {
+  redirect('/dashboard'); // or show error
+}
+```
+
+## Styling & UI
+
+**Principles**:
+- Tailwind CSS v4 (use `@import "tailwindcss";` in globals.css)
+- CSS variables for theme colors: `--primary`, `--secondary`, `--success`, `--warning`, `--danger`, `--background`, `--text`
+- Utility classes in `globals.css`: `.btn`, `.btn-primary`, `.btn-danger`, `.card`, `.table`, `.badge`
+- Light mode only (dark mode optional future enhancement)
+- Responsive: mobile-first (use `sm:`, `md:`, `lg:`)
+- Sticky headers for tables: `sticky top-0 z-10 bg-white`
+- Cards: `rounded-lg border border-gray-200 bg-white shadow-sm`
+
+**Inventory-Specific UI**:
+- **Stock Level Indicators**: 
+  - Green: above reorder point
+  - Yellow/Orange: at or below reorder point
+  - Red: below minimum stock
+- **Transaction badges**: Color-coded by type (in=green, out=red, transfer=blue, adjustment=yellow)
+- **Dashboard cards**: Metrics with icons (total products, low stock alerts, recent transactions)
+- **Data tables**: Sortable columns, pagination, search/filter
+
+**Component Patterns**:
+```typescript
+// Stock level badge
+<span className={`badge ${stock <= minStock ? 'badge-danger' : stock <= reorderPoint ? 'badge-warning' : 'badge-success'}`}>
+  {stock} {unit}
+</span>
+
+// Transaction type badge
+<span className={`badge badge-${type === 'in' ? 'success' : type === 'out' ? 'danger' : 'info'}`}>
+  {type.toUpperCase()}
+</span>
+```
+
+## TypeScript & Linting
+
+**Rules**:
+- Strict mode enabled
+- No `any` (use `unknown` or proper types)
+- Prefer interfaces for public contracts (ports), types for internal
+- Use `satisfies` for type checking without losing inference
+- ESLint: Next.js config + `no-explicit-any`
+- For Drizzle where clauses: `SQL[]` not `any[]`
+- Nullable handling: prefer `?? undefined` over `|| null`
+- Number validation: always validate positive quantities, SKU format
+
+## File Naming & Structure
+
+**Conventions**:
+- PascalCase: React components, use case classes, entities (`CreateProduct.ts`, `RegisterStockIn.ts`)
+- camelCase: utility functions, variables
+- Folders: kebab-case for routes (`stock-in/`, `inventory-report/`), camelCase/PascalCase for code folders
+- Server Actions: `actions.ts` in route folder
+- Client Components: separate file (e.g., `ProductForm.tsx`, `StockInForm.tsx`)
+
+**Folder Structure**:
+```
+src/
+  core/
+    domain/
+      entities/        # Product.ts, Warehouse.ts, InventoryItem.ts, Transaction.ts, Supplier.ts, User.ts
+      errors/          # ProductErrors.ts, InventoryErrors.ts, AuthErrors.ts
+    application/
+      ports/           # ProductRepository.ts, InventoryRepository.ts, TransactionRepository.ts, etc.
+      usecases/        # CreateProduct.ts, RegisterStockIn.ts, RegisterStockOut.ts, TransferStock.ts, etc.
+  infra/
+    repositories/      # ProductRepositoryDrizzle.ts, InventoryRepositoryDrizzle.ts, etc.
+    db/
+      client.ts        # DB connection
+      schema.ts        # Drizzle schema
+    security/          # Hash, JWT, session
+    validation/        # product.ts, inventory.ts, transaction.ts (Zod schemas)
+    container/
+      products.ts      # Product-related use case factories
+      inventory.ts     # Inventory-related use case factories
+      auth.ts          # Auth use case factories
+  app/
+    (auth)/            # login/, register/
+    (dashboard)/       # Main protected area
+      dashboard/       # Overview with metrics
+      products/        # Product CRUD
+      inventory/       # Stock levels, low stock alerts
+      stock-in/        # Register incoming stock
+      stock-out/       # Register outgoing stock
+      transactions/    # Transaction history
+      warehouses/      # Warehouse management
+      suppliers/       # Supplier management
+      reports/         # Inventory reports
+      users/           # User management (admin only)
+  components/          # Navbar.tsx, ProductCard.tsx, StockLevelBadge.tsx, TransactionTable.tsx
+```
+
+## Common Patterns
+
+### Adding a New Feature (e.g., "Transfer Stock Between Warehouses")
+
+1. **Domain**: Create entity if needed (`StockTransfer.ts`) or use existing (`Transaction.ts`)
+2. **Domain Errors**: Add specific errors (`SourceWarehouseEmptyError`, `InsufficientStockError`)
+3. **Application Port**: Define/extend interface (`InventoryRepository.ts` - add `transferStock()`)
+4. **Application Use Case**: Implement logic (`TransferStock.ts`)
+5. **Infra Repository**: Implement port method
+6. **Infra Validation**: Create Zod schema for transfer input
+7. **Infra Container**: Add factory (`makeTransferStock()`)
+8. **Presentation**: Create page + server action (`app/(dashboard)/transfer-stock/`)
+9. **Database**: Update schema if needed, generate migration
+
+### Adding a New Protected Route
+
+1. Create folder in `src/app/(dashboard)/my-feature/`
+2. Add `page.tsx` (Server Component):
+   - Get session, redirect if null
+   - Check role if restricted
+   - Fetch data via use case
+   - Pass to Client Component
+3. Add `actions.ts` if needed (Server Actions)
+4. Add Client Component if interactivity needed
+5. Update `Navbar.tsx` to add link (conditional by role if needed)
+
+### Inventory Business Rules
+
+- **Stock In**: Always increases inventory, logs transaction
+- **Stock Out**: Check sufficient stock before decreasing, throw error if insufficient
+- **Transfer**: Atomic operation (decrease source, increase destination, log both)
+- **Adjustment**: Admin/Manager only, requires notes/justification
+- **Low Stock Alert**: Trigger when quantity <= reorderPoint
+- **Negative Stock**: Never allowed (enforce in validation and use cases)
+
+## SOLID Principles Applied
+
+1. **Single Responsibility**: Each use case = one operation; each repository = one entity
+2. **Open/Closed**: Use cases depend on ports (interfaces), not concrete implementations
+3. **Liskov Substitution**: Repositories implement ports, interchangeable
+4. **Interface Segregation**: Small, focused ports (ProductRepository, InventoryRepository, TransactionRepository)
+5. **Dependency Inversion**: Use cases depend on abstractions (ports), not concretions; container wires dependencies
+
+## Testing Strategy (Future)
+
+- Unit test use cases by mocking ports (e.g., test `RegisterStockOut` with insufficient stock)
+- Integration test repositories against test DB
+- E2E test critical flows (login, stock in/out, low stock alerts, reports)
+- Test edge cases: negative quantities, non-existent products, concurrent stock updates
+
+## Migration Workflow
+
+1. Edit `src/infra/db/schema.ts`
+2. Run `npm run drizzle:generate` to create migration SQL
+3. Review generated SQL in `drizzle/`
+4. Run `npm run drizzle:push` to apply to DB
+5. Test migrations on development DB first
+6. Commit both schema.ts and migration SQL
+
+## Security Checklist
+
+- ✅ Passwords hashed with bcrypt (cost 10)
+- ✅ JWT with expiration (8h default)
+- ✅ httpOnly, secure cookies for session
+- ✅ Server-side session validation on every protected route
+- ✅ Role-based access control (RBAC)
+- ✅ Input validation with Zod before use case execution
+- ✅ SQL injection prevented by Drizzle parameterized queries
+- ✅ Quantity validation: only positive integers allowed
+- ✅ SKU uniqueness enforced at DB level
+- ❌ TODO: Rate limiting on login
+- ❌ TODO: Audit log for sensitive operations (adjustments, deletions)
+- ❌ TODO: CSRF protection (Next.js has built-in for Server Actions)
+
+## Environment Variables
+
+Required in `.env.local`:
+```
+DATABASE_URL=postgresql://user:password@host:port/argos_db
+JWT_SECRET=your-secret-key-min-32-chars
+NODE_ENV=development
+```
+
+Never commit `.env.local`. Keep `.env.example` updated.
+
+## Common Mistakes to Avoid
+
+❌ **Don't** import from infra in domain layer
+❌ **Don't** put business logic in repositories (only data access)
+❌ **Don't** put business logic in components/actions (use use cases)
+❌ **Don't** use `any` type (use `unknown` or specific types)
+❌ **Don't** return `null` from new repos (prefer `undefined` with `??`)
+❌ **Don't** export helpers from `'use server'` files (make them local)
+❌ **Don't** skip session checks in protected routes
+❌ **Don't** allow negative stock quantities
+❌ **Don't** perform stock operations without validation
+❌ **Don't** forget to log transactions for audit trail
+❌ **Don't** skip revalidation after mutations (`revalidatePath()`)
+
+## Inventory-Specific Best Practices
+
+✅ **Do** validate product existence before stock operations
+✅ **Do** check stock levels before allowing stock out
+✅ **Do** use transactions (DB transactions) for multi-step operations (transfers, adjustments)
+✅ **Do** log all stock movements with timestamp and user
+✅ **Do** provide clear error messages for business rule violations
+✅ **Do** implement optimistic locking for concurrent updates (future)
+✅ **Do** generate reports asynchronously for large datasets (future)
+✅ **Do** cache frequently accessed data (product lists, warehouse lists)
+✅ **Do** implement pagination for large result sets
+
+## Questions to Ask Before Coding
+
+1. Which layer does this belong to? (Domain / Application / Infra / Presentation)
+2. Is there an existing use case/repository I can extend?
+3. Do I need a new port, or can I add to existing one?
+4. Is this a Server Component (data fetching) or Client Component (interactivity)?
+5. Does this need role-based access control? Which roles?
+6. Did I validate input with Zod before calling the use case?
+7. Am I following the naming conventions?
+8. Did I handle errors properly (domain errors → user-friendly messages)?
+9. Does this operation affect inventory levels? Did I log the transaction?
+10. Are quantities validated (positive, sufficient stock for out operations)?
+11. Should this trigger a low stock alert?
+12. Do I need to revalidate the page/path after this mutation?
+
+## When in Doubt
+
+- Follow existing patterns (similar to ExpertooH architecture)
+- Keep layers separated (no shortcuts across boundaries)
+- Prefer composition over inheritance
+- Write descriptive types and interfaces
+- Add comments only when business logic is non-obvious (e.g., complex stock calculations)
+- Keep functions small and focused
+- Test edge cases (zero quantities, non-existent products, concurrent updates)
+- Ask for clarification on business rules before implementing
+
+## Future Enhancements Roadmap
+
+- Barcode scanning integration
+- Purchase order management
+- Batch/lot tracking
+- Expiry date management (for perishable items)
+- Multi-currency support for supplier pricing
+- Automated reorder suggestions based on consumption patterns
+- Inventory forecasting with AI/ML
+- Mobile app for warehouse operations
+- Real-time notifications for low stock
+- Advanced reporting (ABC analysis, turnover rates, valuation)
+
+---
+
+**This file should be read by AI assistants before making any changes to ensure consistency with project architecture and conventions.**
