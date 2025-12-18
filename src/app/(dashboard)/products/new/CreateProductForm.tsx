@@ -50,7 +50,7 @@ export function CreateProductForm() {
           type="text"
           required
           placeholder="PROD-001"
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
         />
         {state.fieldErrors?.sku && (
           <p className="mt-1 text-sm text-red-600">{state.fieldErrors.sku[0]}</p>
@@ -71,7 +71,7 @@ export function CreateProductForm() {
           type="text"
           required
           placeholder="Nombre del producto"
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
         />
         {state.fieldErrors?.name && (
           <p className="mt-1 text-sm text-red-600">{state.fieldErrors.name[0]}</p>
@@ -88,7 +88,7 @@ export function CreateProductForm() {
           name="description"
           rows={3}
           placeholder="Descripción opcional del producto"
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
         />
         {state.fieldErrors?.description && (
           <p className="mt-1 text-sm text-red-600">{state.fieldErrors.description[0]}</p>
@@ -106,7 +106,7 @@ export function CreateProductForm() {
           type="text"
           required
           placeholder="Electrónica, Alimentos, etc."
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
         />
         {state.fieldErrors?.category && (
           <p className="mt-1 text-sm text-red-600">{state.fieldErrors.category[0]}</p>
@@ -123,7 +123,7 @@ export function CreateProductForm() {
           name="unit"
           required
           defaultValue="pcs"
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
         >
           <option value="pcs">Piezas (pcs)</option>
           <option value="kg">Kilogramos (kg)</option>
@@ -148,7 +148,7 @@ export function CreateProductForm() {
             type="number"
             min="0"
             defaultValue="0"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
           {state.fieldErrors?.minStock && (
             <p className="mt-1 text-sm text-red-600">{state.fieldErrors.minStock[0]}</p>
@@ -168,7 +168,7 @@ export function CreateProductForm() {
             type="number"
             min="0"
             defaultValue="10"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
           {state.fieldErrors?.reorderPoint && (
             <p className="mt-1 text-sm text-red-600">{state.fieldErrors.reorderPoint[0]}</p>

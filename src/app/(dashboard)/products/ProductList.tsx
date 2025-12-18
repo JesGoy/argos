@@ -52,7 +52,7 @@ export function ProductList({ products }: ProductListProps) {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar por nombre o SKU..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
           <div>
@@ -63,9 +63,10 @@ export function ProductList({ products }: ProductListProps) {
               id="category"
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
-              <option value="">Todas las categorías</option>
+              <option value="">
+                Todas las categorías</option>
               {categories.map((cat) => (
                 <option key={cat} value={cat}>
                   {cat}
@@ -142,18 +143,14 @@ export function ProductList({ products }: ProductListProps) {
                     {product.reorderPoint}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <Link
-                      href={`/products/${product.id}`}
-                      className="text-blue-600 hover:text-blue-900 mr-4"
-                    >
-                      Ver
-                    </Link>
+                    
                     <Link
                       href={`/products/${product.id}/edit`}
                       className="text-green-600 hover:text-green-900 mr-4"
                     >
                       Editar
                     </Link>
+                    
                     <button
                       onClick={() => handleDelete(product.id, product.name)}
                       className="text-red-600 hover:text-red-900"
