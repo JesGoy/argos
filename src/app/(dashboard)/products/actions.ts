@@ -12,6 +12,8 @@ import {
   ProductNotFoundError,
   DuplicateSKUError,
 } from '@/core/domain/errors/ProductErrors';
+import { requireRole } from '@/app/lib/auth';
+import { UnauthorizedError } from '@/core/domain/errors/AuthErrors';
 
 /**
  * State type for product form actions
@@ -37,6 +39,8 @@ export async function createProductAction(
   _prevState: ProductFormState,
   formData: FormData
 ): Promise<ProductFormState> {
+  await requireRole(['admin', 'warehouse_manager', 'operator']);
+
   const rawData = {
     sku: formData.get('sku'),
     name: formData.get('name'),
@@ -61,6 +65,9 @@ export async function createProductAction(
     revalidatePath('/products');
     return { success: true };
   } catch (err) {
+    if (err instanceof UnauthorizedError) {
+      return { error: err.message };
+    }
     if (err instanceof DuplicateSKUError) {
       return { error: err.message };
     }
@@ -76,6 +83,8 @@ export async function updateProductAction(
   _prevState: ProductFormState,
   formData: FormData
 ): Promise<ProductFormState> {
+  await requireRole(['admin', 'warehouse_manager', 'operator']);
+
   const rawData: Record<string, unknown> = {};
 
   const sku = formData.get('sku');
@@ -114,6 +123,9 @@ export async function updateProductAction(
     revalidatePath(`/products/${id}`);
     return { success: true };
   } catch (err) {
+    if (err instanceof UnauthorizedError) {
+      return { error: err.message };
+    }
     if (err instanceof ProductNotFoundError) {
       return { error: err.message };
     }
@@ -129,11 +141,15 @@ export async function updateProductAction(
  */
 export async function deleteProductAction(id: string): Promise<{ error?: string }> {
   try {
+    await requireRole(['admin', 'warehouse_manager', 'operator']);
     const useCase = makeDeleteProduct();
     await useCase.execute(id);
     revalidatePath('/products');
     redirect('/products');
   } catch (err) {
+    if (err instanceof UnauthorizedError) {
+      return { error: err.message };
+    }
     if (err instanceof ProductNotFoundError) {
       return { error: err.message };
     }

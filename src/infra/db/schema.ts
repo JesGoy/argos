@@ -15,6 +15,32 @@ import {
  */
 export const unitEnum = pgEnum('unit', ['pcs', 'kg', 'liter', 'meter', 'box']);
 export const messageRoleEnum = pgEnum('message_role', ['user', 'assistant', 'system']);
+export const userRoleEnum = pgEnum('user_role', ['admin', 'warehouse_manager', 'operator', 'viewer']);
+
+/**
+ * User Table
+ * Stores application users for authentication and authorization
+ */
+export const userTable = pgTable(
+  'User',
+  {
+    id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+    username: varchar('username', { length: 50 }).notNull().unique(),
+    email: varchar('email', { length: 100 }).notNull().unique(),
+    passwordHash: text('password_hash').notNull(),
+    role: userRoleEnum('role').notNull().default('viewer'),
+    fullName: varchar('full_name', { length: 100 }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    usernameIdx: uniqueIndex('user_username_idx').on(table.username),
+    emailIdx: uniqueIndex('user_email_idx').on(table.email),
+    roleIdx: index('user_role_idx').on(table.role),
+  })
+);
+
+export type UserRow = typeof userTable.$inferSelect;
+export type UserInsert = typeof userTable.$inferInsert;
 
 /**
  * Product Table
@@ -55,7 +81,9 @@ export const conversationTable = pgTable(
   'Conversation',
   {
     id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
-    userId: integer('user_id').notNull(),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => userTable.id, { onDelete: 'cascade' }),
     title: varchar('title', { length: 200 }).notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),

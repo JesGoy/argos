@@ -1,0 +1,23 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Next.js dev (server)",
+      "type": "pwa-node",
+      "request": "launch",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "autoAttachChildProcesses": true,
+      "skipFiles": ["<node_internals>/**", "**/node_modules/**"],
+      "envFile": "${workspaceFolder}/.env.local",
+      "env": {
+        "NODE_OPTIONS": "--inspect=9230"
+      },
+      "outFiles": ["${workspaceFolder}/.next/**/*.js"],
+      "sourceMaps": true
+    }
+  ],
+  "compounds": []
+}
