@@ -1,6 +1,7 @@
 import { makeGetProducts } from '@/infra/container/products';
 import Link from 'next/link';
 import { ProductList } from './ProductList';
+import { logoutAction } from '@/app/(dashboard)/logout/actions';
 
 
 export const dynamic = 'force-dynamic';
@@ -20,12 +21,22 @@ export default async function ProductsPage() {
               Gestiona el catálogo de productos del inventario
             </p>
           </div>
-          <Link
-            href="/products/new"
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            + Nuevo Producto
-          </Link>
+          <div className="flex items-center gap-3">
+            <form action={logoutAction}>
+              <button
+                type="submit"
+                className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors"
+              >
+                Cerrar sesión
+              </button>
+            </form>
+            <Link
+              href="/products/new"
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              + Nuevo Producto
+            </Link>
+          </div>
         </div>
 
         {/* Stats */}
