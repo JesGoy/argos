@@ -15,3 +15,16 @@ export const registerSchema = z.object({
 
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().email('Correo inválido'),
+});
+
+export const resetPasswordSchema = z.object({
+  pin: z.string().length(6, 'El PIN debe tener 6 dígitos'),
+  newPassword: z.string().min(8, 'Contraseña mínima 8 caracteres'),
+  confirmPassword: z.string().min(8, 'Contraseña de confirmación requerida'),
+});
+
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;

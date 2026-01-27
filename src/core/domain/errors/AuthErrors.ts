@@ -37,3 +37,27 @@ export class UnauthorizedError extends Error {
     this.name = 'UnauthorizedError';
   }
 }
+
+/**
+ * Password reset specific errors
+ */
+export class PasswordResetNotFoundError extends Error {
+  constructor() {
+    super('Código de recuperación inválido');
+    this.name = 'PasswordResetNotFoundError';
+  }
+}
+
+export class PasswordResetExpiredError extends Error {
+  constructor() {
+    super('Código de recuperación expirado');
+    this.name = 'PasswordResetExpiredError';
+  }
+}
+
+export class PasswordResetUsedError extends Error {
+  constructor() {
+    super('Código de recuperación ya utilizado');
+    this.name = 'PasswordResetUsedError';
+  }
+}

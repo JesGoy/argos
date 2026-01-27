@@ -127,3 +127,29 @@ export type ConversationInsert = typeof conversationTable.$inferInsert;
  */
 export type MessageRow = typeof messageTable.$inferSelect;
 export type MessageInsert = typeof messageTable.$inferInsert;
+
+/**
+ * Password Reset Table
+ * Stores one-time PINs used for password recovery
+ */
+export const passwordResetTable = pgTable(
+  'PasswordReset',
+  {
+    id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => userTable.id, { onDelete: 'cascade' }),
+    pin: varchar('pin', { length: 6 }).notNull(),
+    expiresAt: timestamp('expires_at').notNull(),
+    used: pgEnum('password_reset_used', ['true', 'false'])('used').default('false').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    userIdIdx: index('password_reset_user_id_idx').on(table.userId),
+    pinIdx: index('password_reset_pin_idx').on(table.pin),
+    createdAtIdx: index('password_reset_created_at_idx').on(table.createdAt),
+  })
+);
+
+export type PasswordResetRow = typeof passwordResetTable.$inferSelect;
+export type PasswordResetInsert = typeof passwordResetTable.$inferInsert;
