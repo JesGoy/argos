@@ -1,6 +1,6 @@
 import { ChatInterface } from './ChatInterface';
 import { createConversationAction } from './actions';
-import { redirect } from 'next/navigation';
+import { requireSession } from '@/app/lib/auth';
 
 export const metadata = {
   title: 'Asistente AI - Argos',
@@ -12,12 +12,10 @@ export const metadata = {
  * Provides a conversational interface to manage inventory
  */
 export default async function AIAssistantPage() {
-  // For demo, we use userId = 1
-  // In production, get userId from authentication session
-  const userId = 1;
+  const session = await requireSession();
 
   // Create a new conversation on page load
-  const result = await createConversationAction(userId);
+  const result = await createConversationAction();
 
   if (!result.success || !result.conversation) {
     return (
@@ -40,7 +38,7 @@ export default async function AIAssistantPage() {
       </div>
 
       <div className="flex-1 bg-white rounded-lg shadow-lg border border-gray-200 flex flex-col min-h-0">
-        <ChatInterface userId={userId} conversationId={result.conversation.id} />
+        <ChatInterface conversationId={result.conversation.id} />
       </div>
 
       <div className="mt-4 text-sm text-gray-500 text-center">
