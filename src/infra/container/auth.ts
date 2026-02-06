@@ -60,7 +60,7 @@ export function getEmailService(): EmailService {
     } catch (err) {
       // If nodemailer not installed or misconfigured, fallback to console
       // eslint-disable-next-line no-console
-      console.warn('Nodemailer not available or misconfigured, using ConsoleEmailService');
+      console.warn('Nodemailer not available or misconfigured, using ConsoleEmailService', err);
       emailServiceInstance = new ConsoleEmailService();
     }
   }

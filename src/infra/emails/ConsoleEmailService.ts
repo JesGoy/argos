@@ -1,5 +1,3 @@
-'use server';
-
 import type { EmailService } from '@/core/application/ports/EmailService';
 
 export class ConsoleEmailService implements EmailService {

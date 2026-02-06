@@ -60,6 +60,12 @@ export function LoginForm() {
         )}
       </div>
 
+      <div className="flex justify-end">
+        <a href="/forgot-password" className="text-sm font-medium text-blue-600 hover:text-blue-700">
+          ¿Olvidaste tu contraseña?
+        </a>
+      </div>
+
       {state.error && <p className="text-sm text-red-600">{state.error}</p>}
 
       <SubmitButton />
