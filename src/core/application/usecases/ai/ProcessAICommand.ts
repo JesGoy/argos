@@ -2,6 +2,8 @@ import type { AIService, AIFunction } from '@/core/application/ports/AIService';
 import type { MessageRepository } from '@/core/application/ports/MessageRepository';
 import type { ConversationRepository } from '@/core/application/ports/ConversationRepository';
 import type { ProductRepository } from '@/core/application/ports/ProductRepository';
+import type { SaleRepository } from '@/core/application/ports/SaleRepository';
+import type { StockTransactionRepository } from '@/core/application/ports/StockTransactionRepository';
 import type { Message } from '@/core/domain/entities/Message';
 import { AIServiceError } from '@/core/domain/errors/AIErrors';
 import { ConversationNotFoundError } from '@/core/domain/errors/AIErrors';
@@ -36,6 +38,8 @@ export class ProcessAICommand {
       conversations: ConversationRepository;
       messages: MessageRepository;
       products: ProductRepository;
+      sales: SaleRepository;
+      stockTransactions: StockTransactionRepository;
     }
   ) {}
 
@@ -252,6 +256,96 @@ export class ProcessAICommand {
           };
         },
       },
+      {
+        name: 'check_stock',
+        description: 'Check current stock level for a specific product by SKU.',
+        parameters: {
+          sku: { type: 'string', description: 'Product SKU to check stock' },
+        },
+        execute: async (params) => {
+          const product = await this.deps.products.findBySku(params.sku);
+          if (!product) {
+            throw new Error(`Producto con SKU ${params.sku} no encontrado`);
+          }
+
+          const currentStock = await this.deps.stockTransactions.getCurrentStock(product.id);
+          const isLowStock = currentStock <= product.reorderPoint;
+
+          return {
+            product: {
+              sku: product.sku,
+              name: product.name,
+              category: product.category,
+            },
+            currentStock,
+            reorderPoint: product.reorderPoint,
+            isLowStock,
+            status: isLowStock ? 'low' : 'ok',
+          };
+        },
+      },
+      {
+        name: 'search_product_by_name',
+        description: 'Search for products by name or partial name match.',
+        parameters: {
+          query: { type: 'string', description: 'Search term to find products' },
+        },
+        execute: async (params) => {
+          const products = await this.deps.products.findAll({ search: params.query });
+
+          return {
+            total: products.length,
+            products: products.map((p) => ({
+              sku: p.sku,
+              name: p.name,
+              category: p.category,
+              unit: p.unit,
+            })),
+          };
+        },
+      },
+      {
+        name: 'get_sales_today',
+        description: 'Get today\'s sales statistics including total amount, number of sales, and average ticket.',
+        parameters: {},
+        execute: async () => {
+          const stats = await this.deps.sales.getTodayStats();
+
+          return {
+            date: new Date().toISOString().split('T')[0],
+            totalAmount: stats.totalAmount,
+            totalSales: stats.totalSales,
+            averageTicket: Math.round(stats.averageTicket),
+          };
+        },
+      },
+      {
+        name: 'get_low_stock_products',
+        description: 'Get list of products that are low in stock (below reorder point).',
+        parameters: {},
+        execute: async () => {
+          const products = await this.deps.products.findLowStock();
+          
+          const productsWithStock = await Promise.all(
+            products.map(async (p) => {
+              const currentStock = await this.deps.stockTransactions.getCurrentStock(p.id);
+              return {
+                sku: p.sku,
+                name: p.name,
+                category: p.category,
+                currentStock,
+                reorderPoint: p.reorderPoint,
+                deficit: p.reorderPoint - currentStock,
+              };
+            })
+          );
+
+          return {
+            total: productsWithStock.length,
+            products: productsWithStock,
+          };
+        },
+      },
     ];
   }
 
@@ -285,6 +379,35 @@ export class ProcessAICommand {
         .map((p: any) => `  • ${p.sku} - ${p.name} (${p.category})`)
         .join('\n');
       return `📦 ${baseMessage}\n\nEncontrados ${result.total} productos:\n${productList}`;
+    }
+
+    if (action === 'check_stock') {
+      const statusEmoji = result.isLowStock ? '⚠️' : '✅';
+      return `${statusEmoji} ${baseMessage}\n\n**${result.product.name}**\n• SKU: ${result.product.sku}\n• Stock actual: ${result.currentStock} unidades\n• Punto de reorden: ${result.reorderPoint}\n• Estado: ${result.isLowStock ? 'Stock bajo - Requiere reposición' : 'Stock suficiente'}`;
+    }
+
+    if (action === 'search_product_by_name') {
+      if (result.total === 0) {
+        return `🔍 ${baseMessage}\n\nNo se encontraron productos que coincidan con la búsqueda.`;
+      }
+      const productList = result.products
+        .map((p: any) => `  • ${p.sku} - ${p.name} (${p.category})`)
+        .join('\n');
+      return `🔍 ${baseMessage}\n\nEncontrados ${result.total} productos:\n${productList}`;
+    }
+
+    if (action === 'get_sales_today') {
+      return `💰 ${baseMessage}\n\n**Ventas de hoy (${result.date})**\n• Total vendido: $${result.totalAmount.toLocaleString()}\n• Número de ventas: ${result.totalSales}\n• Ticket promedio: $${result.averageTicket.toLocaleString()}`;
+    }
+
+    if (action === 'get_low_stock_products') {
+      if (result.total === 0) {
+        return `✅ ${baseMessage}\n\nTodos los productos tienen stock suficiente.`;
+      }
+      const productList = result.products
+        .map((p: any) => `  • ${p.sku} - ${p.name}: ${p.currentStock} unidades (falta ${p.deficit})`)
+        .join('\n');
+      return `⚠️ ${baseMessage}\n\n**Productos con stock bajo (${result.total})**:\n${productList}`;
     }
 
     return baseMessage;

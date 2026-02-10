@@ -701,6 +701,103 @@ Never commit `.env.local`. Keep `.env.example` updated.
 11. Should this trigger a low stock alert?
 12. Do I need to revalidate the page/path after this mutation?
 
+## Code Quality: No Magic Strings/Numbers
+
+**Rule**: Eliminate ALL magic strings and numbers by extracting them to constants following SOLID principles.
+
+**Why**: 
+- Maintainability: Change values in one place
+- Type safety: Use TypeScript const assertions
+- Discoverability: Centralized constants are easier to find
+- Reusability: Same values across layers
+- Refactoring: Safe renaming with IDE support
+
+**Where to Define Constants**:
+
+1. **Domain Constants** (`src/core/domain/constants/`):
+   - Business domain values (roles, statuses, types)
+   - Naming: `{Domain}Constants.ts` (e.g., `UserConstants.ts`, `SaleConstants.ts`)
+   - Use `as const` for type safety
+   - Export both the array and the type
+
+2. **Configuration** (`src/config/`):
+   - App-wide configuration (limits, defaults, timeouts)
+   - Environment-dependent values
+
+**Pattern to Follow**:
+
+```typescript
+// ✅ Good - src/core/domain/constants/UserConstants.ts
+export const USER_ROLES = ['admin', 'warehouse_manager', 'operator', 'viewer'] as const;
+export type UserRole = (typeof USER_ROLES)[number];
+
+export const USER_ROLE = {
+  ADMIN: 'admin' as const,
+  WAREHOUSE_MANAGER: 'warehouse_manager' as const,
+  OPERATOR: 'operator' as const,
+  VIEWER: 'viewer' as const,
+} as const;
+
+// ✅ Good - src/core/domain/constants/SaleConstants.ts
+export const PAYMENT_METHODS = ['cash', 'card', 'transfer', 'mixed'] as const;
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+
+export const PAYMENT_METHOD = {
+  CASH: 'cash' as const,
+  CARD: 'card' as const,
+  TRANSFER: 'transfer' as const,
+  MIXED: 'mixed' as const,
+} as const;
+
+export const SALE_STATUSES = ['pending', 'completed', 'cancelled'] as const;
+export type SaleStatus = (typeof SALE_STATUSES)[number];
+
+export const SALE_STATUS = {
+  PENDING: 'pending' as const,
+  COMPLETED: 'completed' as const,
+  CANCELLED: 'cancelled' as const,
+} as const;
+
+// Usage in domain entities
+import { PaymentMethod, SaleStatus } from '@/core/domain/constants/SaleConstants';
+
+export interface Sale {
+  paymentMethod: PaymentMethod;
+  status: SaleStatus;
+}
+
+// Usage in use cases
+import { PAYMENT_METHOD, SALE_STATUS } from '@/core/domain/constants/SaleConstants';
+
+if (input.paymentMethod === PAYMENT_METHOD.CASH) {
+  // logic
+}
+
+// ❌ Bad - magic strings scattered everywhere
+if (input.paymentMethod === 'cash') { }
+status: 'completed'
+requireRole(['admin', 'operator'])
+```
+
+**Common Magic Strings to Extract**:
+- User roles: admin, operator, viewer, etc.
+- Payment methods: cash, card, transfer
+- Sale statuses: pending, completed, cancelled
+- Transaction types: sale, purchase, adjustment, return
+- Units: pcs, kg, liter, meter, box
+- Message roles: user, assistant, system
+- HTTP status codes
+- Error messages (if repeated)
+- Route paths (if reused)
+- Default values (page sizes, limits)
+
+**Checklist Before Committing**:
+- [ ] No hardcoded strings in comparisons (`=== 'value'`)
+- [ ] No hardcoded strings in enums/unions without constants
+- [ ] All repeated values extracted to constants
+- [ ] Constants organized by domain/responsibility
+- [ ] Types derived from constants (not duplicated)
+
 ## When in Doubt
 
 - Follow existing patterns (similar to ExpertooH architecture)
