@@ -2,11 +2,15 @@ import type { AIService } from '@/core/application/ports/AIService';
 import type { ConversationRepository } from '@/core/application/ports/ConversationRepository';
 import type { MessageRepository } from '@/core/application/ports/MessageRepository';
 import type { ProductRepository } from '@/core/application/ports/ProductRepository';
+import type { SaleRepository } from '@/core/application/ports/SaleRepository';
+import type { StockTransactionRepository } from '@/core/application/ports/StockTransactionRepository';
 
 import { VercelAIService } from '@/infra/ai/VercelAIService';
 import { ConversationRepositoryDrizzle } from '@/infra/repositories/ConversationRepositoryDrizzle';
 import { MessageRepositoryDrizzle } from '@/infra/repositories/MessageRepositoryDrizzle';
 import { ProductRepositoryDrizzle } from '@/infra/repositories/ProductRepositoryDrizzle';
+import { SaleRepositoryDrizzle } from '@/infra/repositories/SaleRepositoryDrizzle';
+import { StockTransactionRepositoryDrizzle } from '@/infra/repositories/StockTransactionRepositoryDrizzle';
 
 import { CreateConversation } from '@/core/application/usecases/conversations/CreateConversation';
 import { GetConversationHistory } from '@/core/application/usecases/conversations/GetConversationHistory';
@@ -64,6 +68,30 @@ export function getProductRepository(): ProductRepository {
 }
 
 /**
+ * Sale Repository Singleton
+ */
+let saleRepoInstance: SaleRepository | null = null;
+
+export function getSaleRepository(): SaleRepository {
+  if (!saleRepoInstance) {
+    saleRepoInstance = new SaleRepositoryDrizzle();
+  }
+  return saleRepoInstance;
+}
+
+/**
+ * StockTransaction Repository Singleton
+ */
+let stockTransactionRepoInstance: StockTransactionRepository | null = null;
+
+export function getStockTransactionRepository(): StockTransactionRepository {
+  if (!stockTransactionRepoInstance) {
+    stockTransactionRepoInstance = new StockTransactionRepositoryDrizzle();
+  }
+  return stockTransactionRepoInstance;
+}
+
+/**
  * Use Case Factories
  */
 
@@ -106,5 +134,7 @@ export function makeProcessAICommand(): ProcessAICommand {
     conversations: getConversationRepository(),
     messages: getMessageRepository(),
     products: getProductRepository(),
+    sales: getSaleRepository(),
+    stockTransactions: getStockTransactionRepository(),
   });
 }

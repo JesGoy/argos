@@ -1,5 +1,6 @@
 'use client';
 
+import React, { useState } from 'react';
 import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { registerAction, type RegisterActionState } from './actions';
@@ -21,6 +22,17 @@ function SubmitButton() {
 
 export function RegisterForm() {
   const [state, action] = useActionState(registerAction, initialState);
+  const [values, setValues] = useState({
+    username: '',
+    email: '',
+    password: '',
+    fullName: '',
+  });
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setValues((prev) => ({ ...prev, [name]: value }));
+  };
 
   return (
     <form action={action} className="space-y-4">
@@ -37,6 +49,8 @@ export function RegisterForm() {
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:border-blue-500 focus:outline-none"
             placeholder="jdoe"
             required
+            value={values.username}
+            onChange={handleChange}
           />
           {state.fieldErrors?.username?.[0] && (
             <p className="text-sm text-red-600">{state.fieldErrors.username[0]}</p>
@@ -55,6 +69,8 @@ export function RegisterForm() {
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:border-blue-500 focus:outline-none"
             placeholder="correo@ejemplo.com"
             required
+            value={values.email}
+            onChange={handleChange}
           />
           {state.fieldErrors?.email?.[0] && (
             <p className="text-sm text-red-600">{state.fieldErrors.email[0]}</p>
@@ -73,6 +89,8 @@ export function RegisterForm() {
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:border-blue-500 focus:outline-none"
             placeholder="••••••••"
             required
+            value={values.password}
+            onChange={handleChange}
           />
           {state.fieldErrors?.password?.[0] && (
             <p className="text-sm text-red-600">{state.fieldErrors.password[0]}</p>
@@ -89,6 +107,8 @@ export function RegisterForm() {
             type="text"
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:border-blue-500 focus:outline-none"
             placeholder="Jane Doe"
+            value={values.fullName}
+            onChange={handleChange}
           />
           {state.fieldErrors?.fullName?.[0] && (
             <p className="text-sm text-red-600">{state.fieldErrors.fullName[0]}</p>

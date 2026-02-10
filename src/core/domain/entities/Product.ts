@@ -1,3 +1,5 @@
+import type { ProductUnit } from '@/core/domain/constants/ProductConstants';
+
 /**
  * Product Domain Entity
  * Represents a product in the inventory system
@@ -8,7 +10,8 @@ export interface Product {
   name: string;
   description?: string;
   category: string;
-  unit: 'pcs' | 'kg' | 'liter' | 'meter' | 'box';
+  unit: ProductUnit;
+  currentStock: number;
   minStock: number;
   reorderPoint: number;
   createdAt: Date;
