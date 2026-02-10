@@ -1,12 +1,19 @@
 'use server';
 
 import { makeProcessAICommand, makeCreateConversation } from '@/infra/container/ai';
+import { requireSession } from '@/app/lib/auth';
 
 /**
  * Server Action: Create new conversation
  */
-export async function createConversationAction(userId: number) {
+export async function createConversationAction() {
   try {
+    const session = await requireSession();
+    const userId = Number(session.userId);
+    if (Number.isNaN(userId)) {
+      throw new Error('ID de usuario inválido');
+    }
+
     const createConversation = makeCreateConversation();
     const conversation = await createConversation.execute({
       userId,
@@ -29,12 +36,14 @@ export async function createConversationAction(userId: number) {
 /**
  * Server Action: Send message and get AI response
  */
-export async function sendMessageAction(
-  userId: number,
-  conversationId: string,
-  message: string
-) {
+export async function sendMessageAction(conversationId: string, message: string) {
   try {
+    const session = await requireSession();
+    const userId = Number(session.userId);
+    if (Number.isNaN(userId)) {
+      throw new Error('ID de usuario inválido');
+    }
+
     const processCommand = makeProcessAICommand();
     const result = await processCommand.execute({
       userId,

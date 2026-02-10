@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { sendMessageAction } from './actions';
 
 interface ChatInterfaceProps {
-  userId: number;
   conversationId: string;
 }
 
@@ -14,7 +13,7 @@ interface ChatMessage {
   content: string;
 }
 
-export function ChatInterface({ userId, conversationId }: ChatInterfaceProps) {
+export function ChatInterface({ conversationId }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -37,7 +36,7 @@ export function ChatInterface({ userId, conversationId }: ChatInterfaceProps) {
 
     try {
       // Send message to server
-      const result = await sendMessageAction(userId, conversationId, userMessage);
+      const result = await sendMessageAction(conversationId, userMessage);
 
       if (result.success) {
         // Add AI response
@@ -115,7 +114,7 @@ export function ChatInterface({ userId, conversationId }: ChatInterfaceProps) {
             onChange={(e) => setInput(e.target.value)}
             placeholder="Escribe tu mensaje..."
             disabled={isLoading}
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+            className="flex-1 px-4 py-2 border text-gray-900 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
           />
           <button
             type="submit"

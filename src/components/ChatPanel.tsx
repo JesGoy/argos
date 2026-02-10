@@ -28,10 +28,6 @@ export default function ChatPanel({ isOpen, onToggle, pageContext }: ChatPanelPr
       try {
         const response = await fetch('/api/conversations', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ userId: 1 }),
         });
 
         if (!response.ok) {
@@ -82,7 +78,7 @@ export default function ChatPanel({ isOpen, onToggle, pageContext }: ChatPanelPr
         ? `[Contexto: ${pageContext.name}] ${userMessage}`
         : userMessage;
 
-      const result = await sendMessageAction(1, conversationId, messageWithContext);
+      const result = await sendMessageAction(conversationId, messageWithContext);
 
       if (result.success) {
         const assistantMsg: ChatMessage = {
@@ -191,7 +187,7 @@ export default function ChatPanel({ isOpen, onToggle, pageContext }: ChatPanelPr
               onChange={(e) => setInput(e.target.value)}
               placeholder="Escribe tu mensaje..."
               disabled={isLoading || !conversationId}
-              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
+              className="text-gray-900 flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
             />
             <button
               type="submit"
