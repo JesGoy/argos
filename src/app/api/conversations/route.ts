@@ -1,19 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createConversationAction } from '@/app/(dashboard)/ai-assistant/actions';
+import { requireSession } from '@/app/lib/auth';
 
-export async function POST(request: NextRequest) {
+export async function POST(_request: NextRequest) {
   try {
-    const body = await request.json();
-    const { userId } = body;
+    await requireSession();
 
-    if (!userId) {
-      return NextResponse.json(
-        { error: 'userId es requerido' },
-        { status: 400 }
-      );
-    }
-
-    const result = await createConversationAction(userId);
+    const result = await createConversationAction();
 
     if (!result.success || !result.conversation) {
       return NextResponse.json(
