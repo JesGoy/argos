@@ -163,13 +163,22 @@ export default function EditProductForm({ product }: EditProductFormProps) {
       )}
 
       {/* Botón de envío */}
-      <button
-        type="submit"
-        disabled={isSubmitting}
-        className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400"
-      >
-        {isSubmitting ? "Guardando..." : "Guardar cambios"}
-      </button>
+      <div className="flex gap-4">
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400"
+        >
+          {isSubmitting ? "Guardando..." : "Guardar cambios"}
+        </button>
+        <button
+          type="button"
+          onClick={() => router.push("/products")}
+          className="flex-1 bg-gray-400 text-white py-2 px-4 rounded-md hover:bg-gray-500"
+        >
+          Cancelar
+        </button>
+      </div>
     </form>
   );
 }
