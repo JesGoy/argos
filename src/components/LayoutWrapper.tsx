@@ -7,7 +7,7 @@ import ChatPanel from './ChatPanel';
 const MIN_PANEL_PERCENTAGE = 10;
 const MAX_PANEL_PERCENTAGE = 75;
 const MIN_CONTENT_PERCENTAGE = 20;
-const DEFAULT_PANEL_PERCENTAGE = 50;
+const DEFAULT_PANEL_PERCENTAGE = 20;
 
 const getPageContext = (pathname: string): { name: string; description: string } => {
   if (pathname?.includes('/products')) {
