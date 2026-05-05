@@ -1,11 +1,73 @@
 import { z } from 'zod';
+import { PRODUCT_DEFAULTS, PRODUCT_UNITS } from '@/core/domain/constants/ProductConstants';
 
 /**
  * Unit enum for validation
  */
-export const unitSchema = z.enum(['pcs', 'kg', 'liter', 'meter', 'box'], {
+export const unitSchema = z.enum(PRODUCT_UNITS, {
   message: 'Unidad inválida',
 });
+
+function normalizeRequiredText(value: unknown) {
+  return typeof value === 'string' ? value.trim() : value;
+}
+
+function normalizeOptionalText(value: unknown) {
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : undefined;
+}
+
+export function normalizeCreateProductInput(rawData: Record<string, unknown>) {
+  return {
+    sku: normalizeRequiredText(rawData.sku),
+    name: normalizeRequiredText(rawData.name),
+    description: normalizeOptionalText(rawData.description),
+    category: normalizeRequiredText(rawData.category),
+    unit: rawData.unit ?? PRODUCT_UNITS[0],
+    minStock: rawData.minStock ?? PRODUCT_DEFAULTS.MIN_STOCK,
+    reorderPoint: rawData.reorderPoint ?? PRODUCT_DEFAULTS.REORDER_POINT,
+  };
+}
+
+export function normalizeUpdateProductInput(rawData: Record<string, unknown>) {
+  const normalizedData: Record<string, unknown> = {};
+
+  if (rawData.sku !== undefined) {
+    normalizedData.sku = normalizeRequiredText(rawData.sku);
+  }
+  if (rawData.name !== undefined) {
+    normalizedData.name = normalizeRequiredText(rawData.name);
+  }
+  if (rawData.description !== undefined) {
+    normalizedData.description = normalizeOptionalText(rawData.description);
+  }
+  if (rawData.category !== undefined) {
+    normalizedData.category = normalizeRequiredText(rawData.category);
+  }
+  if (rawData.unit !== undefined) {
+    normalizedData.unit = rawData.unit;
+  }
+  if (rawData.minStock !== undefined) {
+    normalizedData.minStock = rawData.minStock;
+  }
+  if (rawData.reorderPoint !== undefined) {
+    normalizedData.reorderPoint = rawData.reorderPoint;
+  }
+
+  return normalizedData;
+}
+
+export function parseCreateProductInput(rawData: Record<string, unknown>) {
+  return createProductSchema.safeParse(normalizeCreateProductInput(rawData));
+}
+
+export function parseUpdateProductInput(rawData: Record<string, unknown>) {
+  return updateProductSchema.safeParse(normalizeUpdateProductInput(rawData));
+}
 
 /**
  * Schema for creating a product
@@ -30,15 +92,15 @@ export const createProductSchema = z.object({
     .max(100, 'Categoría no puede exceder 100 caracteres'),
   unit: unitSchema,
   minStock: z
-    .number()
+    .coerce.number()
     .int('Stock mínimo debe ser un número entero')
     .min(0, 'Stock mínimo no puede ser negativo')
-    .default(0),
+    .default(PRODUCT_DEFAULTS.MIN_STOCK),
   reorderPoint: z
-    .number()
+    .coerce.number()
     .int('Punto de reorden debe ser un número entero')
     .min(0, 'Punto de reorden no puede ser negativo')
-    .default(10),
+    .default(PRODUCT_DEFAULTS.REORDER_POINT),
 });
 
 /**
@@ -67,12 +129,12 @@ export const updateProductSchema = z.object({
     .optional(),
   unit: unitSchema.optional(),
   minStock: z
-    .number()
+    .coerce.number()
     .int('Stock mínimo debe ser un número entero')
     .min(0, 'Stock mínimo no puede ser negativo')
     .optional(),
   reorderPoint: z
-    .number()
+    .coerce.number()
     .int('Punto de reorden debe ser un número entero')
     .min(0, 'Punto de reorden no puede ser negativo')
     .optional(),

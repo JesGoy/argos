@@ -3,20 +3,17 @@
 import { useState, useRef, useEffect, ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
 import ChatPanel from './ChatPanel';
-
-const MIN_PANEL_PERCENTAGE = 10;
-const MAX_PANEL_PERCENTAGE = 75;
-const MIN_CONTENT_PERCENTAGE = 20;
-const DEFAULT_PANEL_PERCENTAGE = 20;
+import { APP_ROUTE } from '@/config/routes';
+import { AI_PANEL_UI } from '@/config/ui';
 
 const getPageContext = (pathname: string): { name: string; description: string } => {
-  if (pathname?.includes('/products')) {
+  if (pathname?.includes(APP_ROUTE.PRODUCTS)) {
     return {
       name: 'Productos',
       description: 'Gestión de productos del inventario',
     };
   }
-  if (pathname?.includes('/ai-assistant')) {
+  if (pathname?.includes(APP_ROUTE.AI_ASSISTANT)) {
     return {
       name: 'Asistente IA',
       description: 'Panel de asistente conversacional',
@@ -40,13 +37,14 @@ interface LayoutWrapperProps {
 
 export function LayoutWrapper({ children }: LayoutWrapperProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [panelPercentage, setPanelPercentage] = useState(DEFAULT_PANEL_PERCENTAGE);
+  const [panelPercentage, setPanelPercentage] = useState(AI_PANEL_UI.DEFAULT_PANEL_PERCENTAGE);
   const [isDragging, setIsDragging] = useState(false);
   const resizeRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
   const pageContext = getPageContext(pathname);
 
-  const isAuthRoute = pathname?.includes('/login') || pathname?.includes('/register');
+  const isAuthRoute =
+    pathname?.includes(APP_ROUTE.LOGIN) || pathname?.includes(APP_ROUTE.REGISTER);
 
   useEffect(() => {
     if (!isDragging) return;
@@ -54,7 +52,7 @@ export function LayoutWrapper({ children }: LayoutWrapperProps) {
     const handleMouseMove = (e: MouseEvent) => {
       const newPercentage = ((window.innerWidth - e.clientX) / window.innerWidth) * 100;
       
-      if (newPercentage < MIN_PANEL_PERCENTAGE) {
+      if (newPercentage < AI_PANEL_UI.MIN_PANEL_PERCENTAGE) {
         setIsOpen(false);
         setIsDragging(false);
         return;
@@ -62,16 +60,16 @@ export function LayoutWrapper({ children }: LayoutWrapperProps) {
       
       const contentPercentage = 100 - newPercentage;
       const isValidWidth = 
-        newPercentage >= MIN_PANEL_PERCENTAGE && 
-        newPercentage <= MAX_PANEL_PERCENTAGE &&
-        contentPercentage >= MIN_CONTENT_PERCENTAGE;
+        newPercentage >= AI_PANEL_UI.MIN_PANEL_PERCENTAGE && 
+        newPercentage <= AI_PANEL_UI.MAX_PANEL_PERCENTAGE &&
+        contentPercentage >= AI_PANEL_UI.MIN_CONTENT_PERCENTAGE;
       
       if (isValidWidth) {
         setPanelPercentage(newPercentage);
-      } else if (newPercentage > MAX_PANEL_PERCENTAGE) {
-        setPanelPercentage(MAX_PANEL_PERCENTAGE);
-      } else if (contentPercentage < MIN_CONTENT_PERCENTAGE) {
-        setPanelPercentage(100 - MIN_CONTENT_PERCENTAGE);
+      } else if (newPercentage > AI_PANEL_UI.MAX_PANEL_PERCENTAGE) {
+        setPanelPercentage(AI_PANEL_UI.MAX_PANEL_PERCENTAGE);
+      } else if (contentPercentage < AI_PANEL_UI.MIN_CONTENT_PERCENTAGE) {
+        setPanelPercentage(100 - AI_PANEL_UI.MIN_CONTENT_PERCENTAGE);
       }
     };
 
@@ -97,7 +95,7 @@ export function LayoutWrapper({ children }: LayoutWrapperProps) {
       <div 
         className="flex-1 overflow-auto bg-white"
         style={{
-          minWidth: `${MIN_CONTENT_PERCENTAGE}%`,
+          minWidth: `${AI_PANEL_UI.MIN_CONTENT_PERCENTAGE}%`,
           flex: isOpen ? `${100 - panelPercentage}` : 1,
         }}
       >
@@ -123,8 +121,8 @@ export function LayoutWrapper({ children }: LayoutWrapperProps) {
             className="bg-white border-l border-gray-200 flex flex-col"
             style={{ 
               width: `${panelPercentage}%`,
-              minWidth: `${MIN_PANEL_PERCENTAGE}%`,
-              maxWidth: `${MAX_PANEL_PERCENTAGE}%`,
+              minWidth: `${AI_PANEL_UI.MIN_PANEL_PERCENTAGE}%`,
+              maxWidth: `${AI_PANEL_UI.MAX_PANEL_PERCENTAGE}%`,
             }}
           >
             <ChatPanel

@@ -21,9 +21,25 @@ export interface Product {
 /**
  * Input type for creating a new product
  */
-export type CreateProductInput = Omit<Product, 'id' | 'createdAt' | 'updatedAt'>;
+export interface CreateProductInput {
+  sku: string;
+  name: string;
+  description?: string;
+  category: string;
+  unit: ProductUnit;
+  minStock: number;
+  reorderPoint: number;
+}
 
 /**
  * Input type for updating a product
  */
-export type UpdateProductInput = Partial<Omit<Product, 'id' | 'createdAt' | 'updatedAt'>>;
+export interface UpdateProductInput {
+  sku?: string;
+  name?: string;
+  description?: string;
+  category?: string;
+  unit?: ProductUnit;
+  minStock?: number;
+  reorderPoint?: number;
+}

@@ -54,3 +54,44 @@ export const PRODUCT_DEFAULTS = {
   REORDER_POINT: 10,
   CURRENT_STOCK: 0,
 } as const;
+
+export const PRODUCT_COMMAND_SOURCE = {
+  MANUAL: 'manual' as const,
+  AI: 'ai' as const,
+} as const;
+
+export type ProductCommandSource =
+  (typeof PRODUCT_COMMAND_SOURCE)[keyof typeof PRODUCT_COMMAND_SOURCE];
+
+export const PRODUCT_COMMAND_ACTION = {
+  CREATE: 'create' as const,
+  UPDATE: 'update' as const,
+  DELETE: 'delete' as const,
+  GET: 'get' as const,
+  LIST: 'list' as const,
+  SEARCH: 'search' as const,
+  CHECK_STOCK: 'check_stock' as const,
+  GET_LOW_STOCK: 'get_low_stock' as const,
+} as const;
+
+export type ProductCommandAction =
+  (typeof PRODUCT_COMMAND_ACTION)[keyof typeof PRODUCT_COMMAND_ACTION];
+
+export const PRODUCT_AI_ACTION = {
+  CREATE: 'create_product' as const,
+  UPDATE: 'update_product' as const,
+  DELETE: 'delete_product' as const,
+  GET: 'get_product' as const,
+  LIST: 'list_products' as const,
+  SEARCH_BY_NAME: 'search_product_by_name' as const,
+  CHECK_STOCK: 'check_stock' as const,
+  GET_LOW_STOCK: 'get_low_stock_products' as const,
+} as const;
+
+export type ProductAIAction =
+  (typeof PRODUCT_AI_ACTION)[keyof typeof PRODUCT_AI_ACTION];
+
+export const PRODUCT_CONFIRMATION = {
+  DELETE_PENDING_ACTION: PRODUCT_AI_ACTION.DELETE,
+} as const;
+

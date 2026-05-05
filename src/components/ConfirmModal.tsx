@@ -13,6 +13,7 @@ interface ConfirmModalProps {
   textoAceptar?: string;
   textoCancelar?: string;
   isLoading?: boolean;
+  errorMessage?: string;
 }
 
 export function ConfirmModal({
@@ -24,6 +25,7 @@ export function ConfirmModal({
   textoAceptar,
   textoCancelar = 'Cancelar',
   isLoading = false,
+  errorMessage,
 }: ConfirmModalProps) {
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -77,15 +79,15 @@ export function ConfirmModal({
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/20 p-4 backdrop-blur-sm"
       onClick={handleBackdropClick}
       role="dialog"
       aria-modal="true"
       aria-labelledby="modal-title"
     >
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+      <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl ring-1 ring-slate-200">
         {/* Header */}
-        <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex items-center gap-3">
+        <div className="flex items-center gap-3 border-b border-slate-200 bg-slate-50 px-6 py-4">
           <span className="text-2xl">{config.icono}</span>
           <h2 id="modal-title" className="text-lg font-semibold text-gray-900">
             {config.titulo}
@@ -95,11 +97,17 @@ export function ConfirmModal({
         {/* Body */}
         <div className="px-6 py-6">
           <p className="text-gray-700 text-base">{mensaje}</p>
+          {errorMessage ? (
+            <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {errorMessage}
+            </p>
+          ) : null}
         </div>
 
         {/* Footer */}
-        <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex gap-3 justify-end">
+        <div className="flex justify-end gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4">
           <button
+            type="button"
             onClick={onCancelar}
             disabled={loading || isLoading}
             className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
@@ -107,6 +115,7 @@ export function ConfirmModal({
             {textoCancelar}
           </button>
           <button
+            type="button"
             onClick={handleAceptar}
             disabled={loading || isLoading}
             className={`px-4 py-2 text-sm font-medium text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${config.botonColor}`}

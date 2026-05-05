@@ -1,22 +1,26 @@
 import type { AIService } from '@/core/application/ports/AIService';
 import type { ConversationRepository } from '@/core/application/ports/ConversationRepository';
 import type { MessageRepository } from '@/core/application/ports/MessageRepository';
-import type { ProductRepository } from '@/core/application/ports/ProductRepository';
 import type { SaleRepository } from '@/core/application/ports/SaleRepository';
-import type { StockTransactionRepository } from '@/core/application/ports/StockTransactionRepository';
 
 import { VercelAIService } from '@/infra/ai/VercelAIService';
 import { ConversationRepositoryDrizzle } from '@/infra/repositories/ConversationRepositoryDrizzle';
 import { MessageRepositoryDrizzle } from '@/infra/repositories/MessageRepositoryDrizzle';
-import { ProductRepositoryDrizzle } from '@/infra/repositories/ProductRepositoryDrizzle';
 import { SaleRepositoryDrizzle } from '@/infra/repositories/SaleRepositoryDrizzle';
-import { StockTransactionRepositoryDrizzle } from '@/infra/repositories/StockTransactionRepositoryDrizzle';
+import { makeProductCommandService } from '@/infra/container/products';
 
 import { CreateConversation } from '@/core/application/usecases/conversations/CreateConversation';
 import { GetConversationHistory } from '@/core/application/usecases/conversations/GetConversationHistory';
 import { GetConversationById } from '@/core/application/usecases/conversations/GetConversationById';
 import { GetConversationMessages } from '@/core/application/usecases/conversations/GetConversationMessages';
 import { DeleteConversation } from '@/core/application/usecases/conversations/DeleteConversation';
+import { AIFunctionRegistry } from '@/core/application/usecases/ai/AIFunctionRegistry';
+import { AIConfirmationManager } from '@/core/application/usecases/ai/AIConfirmationManager';
+import { CompositeAIResponseFormatter } from '@/core/application/usecases/ai/CompositeAIResponseFormatter';
+import { ProductAIResponseFormatter } from '@/core/application/usecases/ai/formatters/ProductAIResponseFormatter';
+import { SalesAIResponseFormatter } from '@/core/application/usecases/ai/formatters/SalesAIResponseFormatter';
+import { ProductAIFunctionProvider } from '@/core/application/usecases/ai/providers/ProductAIFunctionProvider';
+import { SalesAIFunctionProvider } from '@/core/application/usecases/ai/providers/SalesAIFunctionProvider';
 import { ProcessAICommand } from '@/core/application/usecases/ai/ProcessAICommand';
 
 /**
@@ -56,18 +60,6 @@ export function getMessageRepository(): MessageRepository {
 }
 
 /**
- * Product Repository Singleton (reused from products container)
- */
-let productRepoInstance: ProductRepository | null = null;
-
-export function getProductRepository(): ProductRepository {
-  if (!productRepoInstance) {
-    productRepoInstance = new ProductRepositoryDrizzle();
-  }
-  return productRepoInstance;
-}
-
-/**
  * Sale Repository Singleton
  */
 let saleRepoInstance: SaleRepository | null = null;
@@ -77,18 +69,6 @@ export function getSaleRepository(): SaleRepository {
     saleRepoInstance = new SaleRepositoryDrizzle();
   }
   return saleRepoInstance;
-}
-
-/**
- * StockTransaction Repository Singleton
- */
-let stockTransactionRepoInstance: StockTransactionRepository | null = null;
-
-export function getStockTransactionRepository(): StockTransactionRepository {
-  if (!stockTransactionRepoInstance) {
-    stockTransactionRepoInstance = new StockTransactionRepositoryDrizzle();
-  }
-  return stockTransactionRepoInstance;
 }
 
 /**
@@ -129,12 +109,23 @@ export function makeDeleteConversation(): DeleteConversation {
 }
 
 export function makeProcessAICommand(): ProcessAICommand {
+  const productCommands = makeProductCommandService();
+
   return new ProcessAICommand({
     ai: getAIService(),
     conversations: getConversationRepository(),
     messages: getMessageRepository(),
-    products: getProductRepository(),
-    sales: getSaleRepository(),
-    stockTransactions: getStockTransactionRepository(),
+    functionRegistry: new AIFunctionRegistry([
+      new ProductAIFunctionProvider(productCommands),
+      new SalesAIFunctionProvider(getSaleRepository()),
+    ]),
+    responseFormatter: new CompositeAIResponseFormatter([
+      new ProductAIResponseFormatter(),
+      new SalesAIResponseFormatter(),
+    ]),
+    confirmations: new AIConfirmationManager({
+      messages: getMessageRepository(),
+      productCommands,
+    }),
   });
 }

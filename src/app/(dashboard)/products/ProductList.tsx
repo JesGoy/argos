@@ -3,6 +3,7 @@
 import type { Product } from '@/core/domain/entities/Product';
 import Link from 'next/link';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { deleteProductAction } from './actions';
 
@@ -11,11 +12,13 @@ interface ProductListProps {
 }
 
 export function ProductList({ products }: ProductListProps) {
+  const router = useRouter();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState<{ id: string; name: string } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const categories = Array.from(new Set(products.map((p) => p.category))).sort();
 
@@ -31,6 +34,7 @@ export function ProductList({ products }: ProductListProps) {
   });
 
   const handleDeleteClick = (id: string, name: string) => {
+    setDeleteError(null);
     setProductToDelete({ id, name });
     setDeleteModalOpen(true);
   };
@@ -39,20 +43,28 @@ export function ProductList({ products }: ProductListProps) {
     if (!productToDelete) return;
 
     setIsDeleting(true);
-    const result = await deleteProductAction(productToDelete.id);
-    setIsDeleting(false);
+    setDeleteError(null);
 
-    if (result.error) {
-      alert(`Error: ${result.error}`);
-    } else {
+    try {
+      const result = await deleteProductAction(productToDelete.id);
+
+      if (result.error) {
+        setDeleteError(result.error);
+        return;
+      }
+
       setDeleteModalOpen(false);
       setProductToDelete(null);
+      router.refresh();
+    } finally {
+      setIsDeleting(false);
     }
   };
 
   const handleCancelDelete = () => {
     setDeleteModalOpen(false);
     setProductToDelete(null);
+    setDeleteError(null);
   };
 
   return (
@@ -170,6 +182,7 @@ export function ProductList({ products }: ProductListProps) {
                     </Link>
                     
                     <button
+                      type="button"
                       onClick={() => handleDeleteClick(product.id, product.name)}
                       className="text-red-600 hover:text-red-900"
                     >
@@ -190,6 +203,7 @@ export function ProductList({ products }: ProductListProps) {
         onAceptar={handleConfirmDelete}
         onCancelar={handleCancelDelete}
         isLoading={isDeleting}
+        errorMessage={deleteError ?? undefined}
       />
     </div>
   );

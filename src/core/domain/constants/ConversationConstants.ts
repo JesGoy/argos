@@ -30,3 +30,10 @@ export const CONVERSATION_DEFAULTS = {
   MAX_TITLE_LENGTH: 200,
   MAX_MESSAGE_LENGTH: 5000,
 } as const;
+
+export const CONVERSATION_CONFIRMATION = {
+  METADATA_KEY: 'pendingConfirmation',
+  AFFIRMATIVE_RESPONSES: ['si', 'sí', 'confirmar', 'confirmo', 'ok', 'okay', 'yes'] as const,
+  NEGATIVE_RESPONSES: ['no', 'cancelar', 'cancela', 'cancelado'] as const,
+} as const;
+

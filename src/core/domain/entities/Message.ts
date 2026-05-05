@@ -16,11 +16,12 @@ export interface Message {
  */
 export interface MessageMetadata {
   intent?: string;
-  entities?: Record<string, any>;
+  entities?: Record<string, unknown>;
   action?: string;
   success?: boolean;
   error?: string;
   executionTime?: number;
+  pendingConfirmation?: unknown;
 }
 
 /**

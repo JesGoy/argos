@@ -1,8 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { createConversationAction } from '@/app/(dashboard)/ai-assistant/actions';
 import { requireSession } from '@/app/lib/auth';
+import { AI_ASSISTANT_TEXT } from '@/infra/ai/constants';
 
-export async function POST(_request: NextRequest) {
+export async function POST() {
   try {
     await requireSession();
 
@@ -10,7 +11,7 @@ export async function POST(_request: NextRequest) {
 
     if (!result.success || !result.conversation) {
       return NextResponse.json(
-        { error: 'No se pudo crear la conversación' },
+        { error: AI_ASSISTANT_TEXT.START_CONVERSATION_ERROR },
         { status: 500 }
       );
     }
@@ -23,7 +24,7 @@ export async function POST(_request: NextRequest) {
   } catch (error) {
     console.error('Error creating conversation:', error);
     return NextResponse.json(
-      { error: 'Error al crear la conversación' },
+      { error: AI_ASSISTANT_TEXT.CREATE_CONVERSATION_ERROR },
       { status: 500 }
     );
   }

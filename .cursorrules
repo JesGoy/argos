@@ -798,6 +798,73 @@ requireRole(['admin', 'operator'])
 - [ ] Constants organized by domain/responsibility
 - [ ] Types derived from constants (not duplicated)
 
+## Channel Consistency: Manual UI and AI
+
+**Rule**: Any business capability exposed to the user must behave the same whether it is triggered from a manual screen or from the AI assistant.
+
+**Required parity rules**:
+- Manual actions and AI actions must call the same use case or shared application pipeline for the final business execution.
+- Manual actions and AI actions must enforce the same role checks.
+- Manual actions and AI actions must use the same validation and default values.
+- Destructive actions triggered by AI must use an explicit confirmation flow. Do not rely only on prompt wording.
+- Mutations triggered by AI must refresh or revalidate the same views affected by the equivalent manual action.
+- If a feature is intentionally read-only for a role in the UI, it must also be read-only through AI.
+
+**Implementation guidance**:
+- Keep input parsing at the boundary, but reuse shared normalization helpers so both channels produce the same command input.
+- Do not call repositories directly from conversational orchestration when a business use case already exists.
+- If the AI needs tool/function definitions, those tools must delegate to shared application services instead of duplicating product rules inline.
+
+## AI Orchestration Boundaries
+
+**Rule**: `ProcessAICommand` must remain a thin orchestrator. It coordinates the conversation lifecycle, but it must not become the implementation home for domain-specific product, sales, or POS behavior.
+
+**Required boundaries**:
+- `ProcessAICommand` may validate conversation state, persist messages, invoke the AI service, assemble metadata, and delegate execution.
+- Domain-specific AI tool definitions must live in dedicated providers by domain, for example `ProductAIFunctionProvider`, `SalesAIFunctionProvider`, `PosAIFunctionProvider`.
+- Action-specific response formatting must live in dedicated formatters by domain, not inline in the orchestrator.
+- Conversation confirmation handling for destructive actions must live in a reusable confirmation manager/service, not inline in the orchestrator.
+- Parameter enrichment from conversation history must live in dedicated enrichers/providers by domain, not inline in the orchestrator.
+
+**Implementation guidance**:
+- Register AI function providers through a registry/composition step in `src/infra/container/ai.ts`.
+- If a new AI capability belongs to a domain, add or extend that domain provider instead of editing orchestration branches in `ProcessAICommand`.
+- If a new destructive AI capability is added, wire it through the shared confirmation manager before exposing it.
+
+## Shared Domain Command Services
+
+**Rule**: Every domain exposed both manually and through AI must have a shared application entrypoint for final business execution.
+
+**Required rules**:
+- Manual UI and AI must converge on the same `*CommandService` or equivalent shared application pipeline for mutations.
+- `*CommandService` classes own role checks, mutation orchestration, refresh path metadata, and shared result structure for their domain.
+- `ProcessAICommand` and AI providers must not call repositories directly for mutations when a domain command service exists.
+
+**Examples**:
+- `ProductCommandService` is the pattern to follow for future `SalesCommandService` and `PosCommandService`.
+- Read-only AI queries may temporarily use read-specific services, but once a domain gets AI mutations it must expose a shared command service.
+
+## AI Module Ownership
+
+**Rule**: Keep ownership explicit so growth happens by composition, not by enlarging central files.
+
+**Ownership map**:
+- `ProcessAICommand`: conversation orchestration only.
+- `AIFunctionRegistry`: aggregates available AI providers.
+- `*AIFunctionProvider`: tool definitions and domain-specific parameter preparation.
+- `*AIResponseFormatter`: domain-specific success/result rendering.
+- `AIConfirmationManager`: destructive confirmation flows.
+- `*CommandService`: final business execution shared by AI and manual UI.
+
+## Class Growth Limits
+
+**Rule**: Split orchestration and service classes before they become multi-domain monoliths.
+
+**Guidance**:
+- If a class begins owning multiple independent concerns, extract them before adding new features.
+- If adding a new domain feature would require editing tool definitions, formatting, confirmation, and business execution logic in the same class, the architecture is wrong and must be split first.
+- Prefer adding a new provider/formatter/service pair over expanding a central switch-style class.
+
 ## When in Doubt
 
 - Follow existing patterns (similar to ExpertooH architecture)
