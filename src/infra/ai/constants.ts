@@ -61,3 +61,10 @@ export const AI_CHAT_HINTS = [
 export const AI_CHAT_MESSAGE_ID = {
   INITIAL: 'initial',
 } as const;
+
+export const AI_RESPONSE_MESSAGE = {
+  CONFIRMATION_CANCELLED: (action: string, sku: string, productName: string) =>
+    `Operación cancelada. No ejecuté ${action} para ${sku} (${productName}).`,
+  CONFIRMATION_REQUIRED: (action: string, sku: string, productName: string) =>
+    `Necesito una confirmación explícita para ${action} en ${sku} (${productName}). Responde "sí" para confirmar o "no" para cancelar.`,
+} as const;

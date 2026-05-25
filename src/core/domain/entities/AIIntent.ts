@@ -55,8 +55,8 @@ export interface AIResponse {
   intent?: AIIntent;
   functionCall?: {
     name: string;
-    arguments: any;
-    result?: any;
+    arguments: unknown;
+    result?: unknown;
   };
   suggestions?: string[];
 }

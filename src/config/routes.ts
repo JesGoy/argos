@@ -3,6 +3,8 @@ export const APP_ROUTE = {
   REGISTER: '/register',
   PRODUCTS: '/products',
   AI_ASSISTANT: '/ai-assistant',
+  POS: '/pos',
+  SALES: '/sales',
 } as const;
 
 export const API_ROUTE = {
@@ -10,3 +12,4 @@ export const API_ROUTE = {
 } as const;
 
 export const PRODUCT_REVALIDATE_PATHS = [APP_ROUTE.PRODUCTS] as const;
+export const STOCK_REVALIDATE_PATHS = [APP_ROUTE.PRODUCTS] as const;

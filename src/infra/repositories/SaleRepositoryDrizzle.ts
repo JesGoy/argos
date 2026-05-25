@@ -240,10 +240,11 @@ export class SaleRepositoryDrizzle implements SaleRepository {
     const prefix = `V${year}${month}${day}`;
 
     // Get the last sale number for today
+    const likePattern = `${prefix}%`;
     const lastSale = await db
       .select()
       .from(saleTable)
-      .where(sql`${saleTable.saleNumber} LIKE ${prefix}%`)
+      .where(sql`${saleTable.saleNumber} LIKE ${likePattern}`)
       .orderBy(desc(saleTable.saleNumber))
       .limit(1);
 

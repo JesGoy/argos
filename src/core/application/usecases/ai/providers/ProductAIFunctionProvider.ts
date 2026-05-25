@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import type { AIFunction } from '@/core/application/ports/AIService';
 import type {
   ProductCommandActor,
@@ -30,25 +31,29 @@ import type {
 export class ProductAIFunctionProvider implements AIFunctionProvider {
   constructor(private readonly productCommands: ProductCommandService) {}
 
+  getSystemPromptSection(): string {
+    return `## Gestión de productos:
+- Crear, actualizar y eliminar productos con sus atributos (SKU, nombre, categoría, unidad, stock mínimo, punto de reorden, descripción).
+- Buscar productos por SKU o nombre, listar por categoría.
+- Consultar alertas de stock bajo.
+- La eliminación requiere confirmación explícita del usuario.`;
+  }
+
   getFunctions(actor: ProductCommandActor, history: Message[]): AIFunction[] {
     return [
       {
         name: PRODUCT_AI_ACTION.CREATE,
         description:
           'Create a new product in the inventory. Requires SKU (uppercase letters, numbers, hyphens), name, category, and unit.',
-        parameters: {
-          sku: { type: 'string', description: 'Unique product SKU (e.g., PROD-001)' },
-          name: { type: 'string', description: 'Product name' },
-          category: { type: 'string', description: 'Product category' },
-          unit: {
-            type: 'string',
-            enum: PRODUCT_UNITS,
-            description: 'Unit of measurement',
-          },
-          description: { type: 'string', optional: true, description: 'Product description' },
-          minStock: { type: 'number', optional: true, description: 'Minimum stock level' },
-          reorderPoint: { type: 'number', optional: true, description: 'Reorder point' },
-        },
+        parameters: z.object({
+          sku: z.string().describe('Unique product SKU (e.g., PROD-001). Uppercase letters, numbers and hyphens only.'),
+          name: z.string().describe('Product name'),
+          category: z.string().describe('Product category'),
+          unit: z.enum(PRODUCT_UNITS).describe('Unit of measurement: pcs, kg, liter, meter, box'),
+          description: z.string().optional().describe('Product description'),
+          minStock: z.number().optional().describe('Minimum stock level (default: 0)'),
+          reorderPoint: z.number().optional().describe('Reorder point (default: 10)'),
+        }),
         execute: async (params) => {
           const parsed = parseCreateProductInput(this.enrichMutationParams(params, history));
           if (!parsed.success) {
@@ -67,20 +72,15 @@ export class ProductAIFunctionProvider implements AIFunctionProvider {
         name: PRODUCT_AI_ACTION.UPDATE,
         description:
           'Update an existing product. Can update any field except ID. Requires SKU to identify the product.',
-        parameters: {
-          sku: { type: 'string', description: 'Product SKU to update' },
-          name: { type: 'string', optional: true, description: 'New product name' },
-          category: { type: 'string', optional: true, description: 'New category' },
-          unit: {
-            type: 'string',
-            enum: PRODUCT_UNITS,
-            optional: true,
-            description: 'New unit',
-          },
-          description: { type: 'string', optional: true, description: 'New description' },
-          minStock: { type: 'number', optional: true, description: 'New minimum stock' },
-          reorderPoint: { type: 'number', optional: true, description: 'New reorder point' },
-        },
+        parameters: z.object({
+          sku: z.string().describe('Product SKU to update'),
+          name: z.string().optional().describe('New product name'),
+          category: z.string().optional().describe('New category'),
+          unit: z.enum(PRODUCT_UNITS).optional().describe('New unit of measurement'),
+          description: z.string().optional().describe('New description'),
+          minStock: z.number().optional().describe('New minimum stock level'),
+          reorderPoint: z.number().optional().describe('New reorder point'),
+        }),
         execute: async (params) => {
           const parsed = parseUpdateProductInput(this.enrichMutationParams(params, history));
           if (!parsed.success) {
@@ -106,9 +106,9 @@ export class ProductAIFunctionProvider implements AIFunctionProvider {
         name: PRODUCT_AI_ACTION.DELETE,
         description:
           'Delete a product from the inventory. This action cannot be undone. Requires SKU.',
-        parameters: {
-          sku: { type: 'string', description: 'SKU of the product to delete' },
-        },
+        parameters: z.object({
+          sku: z.string().describe('SKU of the product to delete'),
+        }),
         execute: async (params) => {
           const confirmation = await this.productCommands.buildDeleteConfirmation(
             actor,
@@ -124,9 +124,9 @@ export class ProductAIFunctionProvider implements AIFunctionProvider {
       {
         name: PRODUCT_AI_ACTION.GET,
         description: 'Get detailed information about a specific product by SKU.',
-        parameters: {
-          sku: { type: 'string', description: 'Product SKU to retrieve' },
-        },
+        parameters: z.object({
+          sku: z.string().describe('Product SKU to retrieve'),
+        }),
         execute: async (params) => {
           const result = await this.productCommands.getBySku(String(params.sku));
 
@@ -138,13 +138,9 @@ export class ProductAIFunctionProvider implements AIFunctionProvider {
       {
         name: PRODUCT_AI_ACTION.LIST,
         description: 'List all products or filter by category.',
-        parameters: {
-          category: {
-            type: 'string',
-            optional: true,
-            description: 'Filter by category (optional)',
-          },
-        },
+        parameters: z.object({
+          category: z.string().optional().describe('Filter products by category (optional)'),
+        }),
         execute: async (params) => {
           const result = await this.productCommands.list(
             params.category ? { category: String(params.category) } : undefined
@@ -165,9 +161,9 @@ export class ProductAIFunctionProvider implements AIFunctionProvider {
       {
         name: PRODUCT_AI_ACTION.CHECK_STOCK,
         description: 'Check current stock level for a specific product by SKU.',
-        parameters: {
-          sku: { type: 'string', description: 'Product SKU to check stock' },
-        },
+        parameters: z.object({
+          sku: z.string().describe('Product SKU to check stock for'),
+        }),
         execute: async (params) => {
           const result = await this.productCommands.getCurrentStockBySku(String(params.sku));
 
@@ -185,9 +181,9 @@ export class ProductAIFunctionProvider implements AIFunctionProvider {
       {
         name: PRODUCT_AI_ACTION.SEARCH_BY_NAME,
         description: 'Search for products by name or partial name match.',
-        parameters: {
-          query: { type: 'string', description: 'Search term to find products' },
-        },
+        parameters: z.object({
+          query: z.string().describe('Search term to find products by name'),
+        }),
         execute: async (params) => {
           const result = await this.productCommands.searchByName(String(params.query));
 
@@ -205,7 +201,7 @@ export class ProductAIFunctionProvider implements AIFunctionProvider {
       {
         name: PRODUCT_AI_ACTION.GET_LOW_STOCK,
         description: 'Get list of products that are low in stock (below reorder point).',
-        parameters: {},
+        parameters: z.object({}),
         execute: async () => {
           const result = await this.productCommands.getLowStockProducts();
 
@@ -227,10 +223,9 @@ export class ProductAIFunctionProvider implements AIFunctionProvider {
   }
 
   private enrichMutationParams(
-    params: unknown,
+    params: Record<string, unknown>,
     history: Message[]
   ): Record<string, unknown> {
-    const baseParams = this.asRecord(params);
     const userMessages = history
       .filter((message) => message.role === MESSAGE_ROLE.USER)
       .map((message) => message.content)
@@ -238,26 +233,18 @@ export class ProductAIFunctionProvider implements AIFunctionProvider {
       .slice(0, 3);
 
     return {
-      ...baseParams,
+      ...params,
       minStock: this.resolveNumericField(
-        baseParams.minStock,
+        params.minStock,
         userMessages,
         AI_PRODUCT_MESSAGE_PATTERNS.MIN_STOCK
       ),
       reorderPoint: this.resolveNumericField(
-        baseParams.reorderPoint,
+        params.reorderPoint,
         userMessages,
         AI_PRODUCT_MESSAGE_PATTERNS.REORDER_POINT
       ),
     };
-  }
-
-  private asRecord(value: unknown): Record<string, unknown> {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
-      return {};
-    }
-
-    return { ...(value as Record<string, unknown>) };
   }
 
   private resolveNumericField(

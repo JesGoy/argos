@@ -1,4 +1,4 @@
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, and } from 'drizzle-orm';
 import type { Conversation, CreateConversationInput } from '@/core/domain/entities/Conversation';
 import type { ConversationRepository } from '@/core/application/ports/ConversationRepository';
 import { getDb } from '@/infra/db/client';
@@ -79,5 +79,20 @@ export class ConversationRepositoryDrizzle implements ConversationRepository {
   async exists(id: string): Promise<boolean> {
     const conversation = await this.findById(id);
     return conversation !== null;
+  }
+
+  async belongsToUser(id: string, userId: number): Promise<boolean> {
+    const db = getDb();
+    const rows = await db
+      .select({ id: conversationTable.id })
+      .from(conversationTable)
+      .where(
+        and(
+          eq(conversationTable.id, parseInt(id, 10)),
+          eq(conversationTable.userId, userId)
+        )
+      )
+      .limit(1);
+    return rows.length > 0;
   }
 }

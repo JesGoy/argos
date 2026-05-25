@@ -42,3 +42,14 @@ export const INCREASES_STOCK: Record<TransactionType, boolean> = {
   adjustment: true, // Can be positive or negative based on quantity sign
   return: true,
 } as const;
+
+/**
+ * AI action identifiers for stock operations
+ */
+export const STOCK_AI_ACTION = {
+  STOCK_IN: 'register_stock_in' as const,
+  STOCK_OUT: 'register_stock_out' as const,
+  GET_HISTORY: 'get_stock_history' as const,
+} as const;
+
+export type StockAIAction = (typeof STOCK_AI_ACTION)[keyof typeof STOCK_AI_ACTION];
