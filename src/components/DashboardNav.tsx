@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactElement } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { SessionData } from "@/core/application/ports/SessionService";
@@ -12,7 +12,7 @@ type NavItem = {
   href: string;
   description: string;
   roles: SessionData["role"][];
-  icon: JSX.Element;
+  icon: ReactElement;
 };
 
 const NAV_ITEMS: NavItem[] = [
