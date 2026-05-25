@@ -2,11 +2,14 @@ import { makeGetProducts } from '@/infra/container/products';
 import Link from 'next/link';
 import { ProductList } from './ProductList';
 import { logoutAction } from '@/app/(dashboard)/logout/actions';
-
+import { requireRole } from '@/app/lib/auth';
+import { PRODUCT_MANAGEMENT_ROLES } from '@/core/domain/constants/UserConstants';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ProductsPage() {
+  await requireRole([...PRODUCT_MANAGEMENT_ROLES]);
+
   const useCase = makeGetProducts();
   const products = await useCase.execute();
 

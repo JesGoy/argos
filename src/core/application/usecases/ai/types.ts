@@ -3,6 +3,7 @@ import type {
   ProductCommandActor,
   ProductDeleteConfirmation,
 } from '@/core/application/usecases/products/ProductCommandService';
+import type { StockOutConfirmation } from '@/core/application/usecases/stock/StockCommandService';
 import type { Message } from '@/core/domain/entities/Message';
 
 export interface ProcessAICommandOutput {
@@ -16,6 +17,7 @@ export interface ProcessAICommandOutput {
 
 export interface AIFunctionProvider {
   getFunctions(actor: ProductCommandActor, history: Message[]): AIFunction[];
+  getSystemPromptSection?(): string;
 }
 
 export interface AIResultFormatter {
@@ -23,4 +25,14 @@ export interface AIResultFormatter {
   format(action: string, result: unknown): Promise<string>;
 }
 
-export type AIPendingConfirmation = ProductDeleteConfirmation;
+export interface ConfirmationHandler {
+  supports(action: string): boolean;
+  execute(
+    actor: ProductCommandActor,
+    conversationId: string,
+    confirmation: AIPendingConfirmation,
+    startTime: number
+  ): Promise<ProcessAICommandOutput>;
+}
+
+export type AIPendingConfirmation = ProductDeleteConfirmation | StockOutConfirmation;

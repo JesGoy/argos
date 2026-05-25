@@ -11,6 +11,7 @@ import { PRODUCT_COMMAND_SOURCE } from '@/core/domain/constants/ProductConstants
 import type { UserRole } from '@/core/domain/constants/UserConstants';
 import { AIServiceError, ConversationNotFoundError } from '@/core/domain/errors/AIErrors';
 import { AI_RESPONSE_ICON } from '@/infra/ai/constants';
+import { AI_CONFIG } from '@/infra/ai/config';
 
 export interface ProcessAICommandInput {
   userId: number;
@@ -35,8 +36,11 @@ export class ProcessAICommand {
     const startTime = Date.now();
 
     try {
-      const conversationExists = await this.deps.conversations.exists(input.conversationId);
-      if (!conversationExists) {
+      const isOwnedByUser = await this.deps.conversations.belongsToUser(
+        input.conversationId,
+        input.userId
+      );
+      if (!isOwnedByUser) {
         throw new ConversationNotFoundError(input.conversationId);
       }
 
@@ -73,7 +77,8 @@ export class ProcessAICommand {
         CONVERSATION_DEFAULTS.MAX_HISTORY_MESSAGES
       );
       const availableFunctions = this.deps.functionRegistry.getFunctions(actor, history);
-      const aiResponse = await this.deps.ai.chat(history, availableFunctions);
+      const systemPrompt = this.deps.functionRegistry.buildSystemPrompt(AI_CONFIG.systemPrompt);
+      const aiResponse = await this.deps.ai.chat(history, availableFunctions, systemPrompt);
 
       const functionResult = aiResponse.functionCall?.result;
       const actionPerformed = aiResponse.functionCall?.name;

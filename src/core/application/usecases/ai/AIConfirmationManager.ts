@@ -1,33 +1,33 @@
 import type { MessageRepository } from '@/core/application/ports/MessageRepository';
+import type { ProductCommandActor } from '@/core/application/usecases/products/ProductCommandService';
 import type {
-  ProductCommandActor,
-  ProductCommandService,
-} from '@/core/application/usecases/products/ProductCommandService';
-import type { AIPendingConfirmation, ProcessAICommandOutput } from '@/core/application/usecases/ai/types';
+  AIPendingConfirmation,
+  ConfirmationHandler,
+  ProcessAICommandOutput,
+} from '@/core/application/usecases/ai/types';
 import {
   CONVERSATION_CONFIRMATION,
   MESSAGE_ROLE,
 } from '@/core/domain/constants/ConversationConstants';
-import { PRODUCT_AI_ACTION } from '@/core/domain/constants/ProductConstants';
-import { AI_RESPONSE_ICON } from '@/infra/ai/constants';
+import { AI_RESPONSE_MESSAGE } from '@/infra/ai/constants';
 
 export class AIConfirmationManager {
   constructor(
     private readonly deps: {
       messages: MessageRepository;
-      productCommands: ProductCommandService;
+      handlers: ConfirmationHandler[];
     }
   ) {}
 
   async getPendingConfirmation(conversationId: string): Promise<AIPendingConfirmation | undefined> {
-    const messages = await this.deps.messages.getLastMessages(conversationId, 1);
-    const previousMessage = messages[0] ?? null;
+    const messages = await this.deps.messages.getLastMessages(conversationId, 2);
+    const lastAssistantMessage = [...messages].reverse().find((m) => m.role === MESSAGE_ROLE.ASSISTANT);
 
-    if (previousMessage?.role !== MESSAGE_ROLE.ASSISTANT) {
+    if (!lastAssistantMessage) {
       return undefined;
     }
 
-    return this.extractPendingConfirmation(previousMessage.metadata);
+    return this.extractPendingConfirmation(lastAssistantMessage.metadata);
   }
 
   extractPendingConfirmation(source: unknown): AIPendingConfirmation | undefined {
@@ -53,11 +53,15 @@ export class AIConfirmationManager {
     const normalizedMessage = this.normalizeConfirmationMessage(userMessage);
 
     if (this.isAffirmativeConfirmation(normalizedMessage)) {
-      return this.confirmAction(actor, conversationId, pendingConfirmation, startTime);
+      return this.dispatchToHandler(actor, conversationId, pendingConfirmation, startTime);
     }
 
     if (this.isNegativeConfirmation(normalizedMessage)) {
-      const response = `Operación cancelada. No ejecuté ${pendingConfirmation.action} para ${pendingConfirmation.sku} (${pendingConfirmation.productName}).`;
+      const response = AI_RESPONSE_MESSAGE.CONFIRMATION_CANCELLED(
+        pendingConfirmation.action,
+        pendingConfirmation.sku,
+        pendingConfirmation.productName
+      );
       const assistantMessage = await this.deps.messages.create({
         conversationId,
         role: MESSAGE_ROLE.ASSISTANT,
@@ -79,7 +83,11 @@ export class AIConfirmationManager {
       };
     }
 
-    const response = `Necesito una confirmación explícita para eliminar ${pendingConfirmation.sku} (${pendingConfirmation.productName}). Responde "sí" para confirmar o "no" para cancelar.`;
+    const response = AI_RESPONSE_MESSAGE.CONFIRMATION_REQUIRED(
+      pendingConfirmation.action,
+      pendingConfirmation.sku,
+      pendingConfirmation.productName
+    );
     const assistantMessage = await this.deps.messages.create({
       conversationId,
       role: MESSAGE_ROLE.ASSISTANT,
@@ -105,38 +113,17 @@ export class AIConfirmationManager {
     };
   }
 
-  private async confirmAction(
+  private async dispatchToHandler(
     actor: ProductCommandActor,
     conversationId: string,
-    pendingConfirmation: AIPendingConfirmation,
+    confirmation: AIPendingConfirmation,
     startTime: number
   ): Promise<ProcessAICommandOutput> {
-    if (pendingConfirmation.action !== PRODUCT_AI_ACTION.DELETE) {
-      throw new Error(`Acción de confirmación no soportada: ${pendingConfirmation.action}`);
+    const handler = this.deps.handlers.find((h) => h.supports(confirmation.action));
+    if (!handler) {
+      throw new Error(`No hay handler registrado para la acción de confirmación: ${confirmation.action}`);
     }
-
-    const result = await this.deps.productCommands.deleteBySku(actor, pendingConfirmation.sku);
-    const response = `${AI_RESPONSE_ICON.SUCCESS} Eliminé el producto ${pendingConfirmation.sku} (${pendingConfirmation.productName}) del inventario.`;
-
-    const assistantMessage = await this.deps.messages.create({
-      conversationId,
-      role: MESSAGE_ROLE.ASSISTANT,
-      content: response,
-      metadata: {
-        action: pendingConfirmation.action,
-        success: true,
-        executionTime: Date.now() - startTime,
-      },
-    });
-
-    return {
-      response,
-      messageId: assistantMessage.id,
-      actionPerformed: pendingConfirmation.action,
-      result: result.data,
-      refreshPaths: result.refreshPaths,
-      shouldRefreshUi: result.refreshPaths.length > 0,
-    };
+    return handler.execute(actor, conversationId, confirmation, startTime);
   }
 
   private normalizeConfirmationMessage(message: string) {

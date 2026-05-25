@@ -7,9 +7,10 @@ import {
   ProductNotFoundError,
   DuplicateSKUError,
 } from '@/core/domain/errors/ProductErrors';
-import { requireSession } from '@/app/lib/auth';
+import { requireRole } from '@/app/lib/auth';
 import { UnauthorizedError } from '@/core/domain/errors/AuthErrors';
 import { PRODUCT_COMMAND_SOURCE } from '@/core/domain/constants/ProductConstants';
+import { PRODUCT_MANAGEMENT_ROLES } from '@/core/domain/constants/UserConstants';
 
 /**
  * State type for product form actions
@@ -39,7 +40,7 @@ export async function createProductAction(
   _prevState: ProductFormState,
   formData: FormData
 ): Promise<ProductFormState> {
-  const session = await requireSession();
+  const session = await requireRole([...PRODUCT_MANAGEMENT_ROLES]);
 
   const rawData = {
     sku: formData.get('sku'),
@@ -91,7 +92,7 @@ export async function updateProductAction(
   _prevState: ProductFormState,
   formData: FormData
 ): Promise<ProductFormState> {
-  const session = await requireSession();
+  const session = await requireRole([...PRODUCT_MANAGEMENT_ROLES]);
 
   const rawData: Record<string, unknown> = {};
 
@@ -161,7 +162,7 @@ export async function updateProductAction(
  */
 export async function deleteProductAction(id: string): Promise<{ error?: string }> {
   try {
-    const session = await requireSession();
+    const session = await requireRole([...PRODUCT_MANAGEMENT_ROLES]);
     const productCommands = makeProductCommandService();
     const result = await productCommands.deleteById(
       {

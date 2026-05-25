@@ -7,6 +7,8 @@ import { VercelAIService } from '@/infra/ai/VercelAIService';
 import { ConversationRepositoryDrizzle } from '@/infra/repositories/ConversationRepositoryDrizzle';
 import { MessageRepositoryDrizzle } from '@/infra/repositories/MessageRepositoryDrizzle';
 import { SaleRepositoryDrizzle } from '@/infra/repositories/SaleRepositoryDrizzle';
+import { ProductRepositoryDrizzle } from '@/infra/repositories/ProductRepositoryDrizzle';
+import { StockTransactionRepositoryDrizzle } from '@/infra/repositories/StockTransactionRepositoryDrizzle';
 import { makeProductCommandService } from '@/infra/container/products';
 
 import { CreateConversation } from '@/core/application/usecases/conversations/CreateConversation';
@@ -19,8 +21,13 @@ import { AIConfirmationManager } from '@/core/application/usecases/ai/AIConfirma
 import { CompositeAIResponseFormatter } from '@/core/application/usecases/ai/CompositeAIResponseFormatter';
 import { ProductAIResponseFormatter } from '@/core/application/usecases/ai/formatters/ProductAIResponseFormatter';
 import { SalesAIResponseFormatter } from '@/core/application/usecases/ai/formatters/SalesAIResponseFormatter';
+import { StockAIResponseFormatter } from '@/core/application/usecases/ai/formatters/StockAIResponseFormatter';
 import { ProductAIFunctionProvider } from '@/core/application/usecases/ai/providers/ProductAIFunctionProvider';
 import { SalesAIFunctionProvider } from '@/core/application/usecases/ai/providers/SalesAIFunctionProvider';
+import { StockAIFunctionProvider } from '@/core/application/usecases/ai/providers/StockAIFunctionProvider';
+import { ProductDeleteConfirmationHandler } from '@/core/application/usecases/ai/confirmations/ProductDeleteConfirmationHandler';
+import { StockOutConfirmationHandler } from '@/core/application/usecases/ai/confirmations/StockOutConfirmationHandler';
+import { StockCommandService } from '@/core/application/usecases/stock/StockCommandService';
 import { ProcessAICommand } from '@/core/application/usecases/ai/ProcessAICommand';
 
 /**
@@ -108,24 +115,38 @@ export function makeDeleteConversation(): DeleteConversation {
   });
 }
 
+export function makeStockCommandService(): StockCommandService {
+  return new StockCommandService({
+    products: new ProductRepositoryDrizzle(),
+    stockTransactions: new StockTransactionRepositoryDrizzle(),
+  });
+}
+
 export function makeProcessAICommand(): ProcessAICommand {
+  const messages = getMessageRepository();
   const productCommands = makeProductCommandService();
+  const stockCommands = makeStockCommandService();
 
   return new ProcessAICommand({
     ai: getAIService(),
     conversations: getConversationRepository(),
-    messages: getMessageRepository(),
+    messages,
     functionRegistry: new AIFunctionRegistry([
       new ProductAIFunctionProvider(productCommands),
       new SalesAIFunctionProvider(getSaleRepository()),
+      new StockAIFunctionProvider(stockCommands),
     ]),
     responseFormatter: new CompositeAIResponseFormatter([
       new ProductAIResponseFormatter(),
       new SalesAIResponseFormatter(),
+      new StockAIResponseFormatter(),
     ]),
     confirmations: new AIConfirmationManager({
-      messages: getMessageRepository(),
-      productCommands,
+      messages,
+      handlers: [
+        new ProductDeleteConfirmationHandler({ messages, productCommands }),
+        new StockOutConfirmationHandler({ messages, stockCommands }),
+      ],
     }),
   });
 }

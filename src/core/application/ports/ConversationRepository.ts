@@ -34,4 +34,9 @@ export interface ConversationRepository {
    * Check if a conversation exists
    */
   exists(id: string): Promise<boolean>;
+
+  /**
+   * Check if a conversation exists and belongs to the specified user
+   */
+  belongsToUser(id: string, userId: number): Promise<boolean>;
 }

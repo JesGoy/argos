@@ -30,8 +30,8 @@ export async function processSaleAction(
     const rawData = {
       items: JSON.parse(formData.get('items') as string),
       paymentMethod: formData.get('paymentMethod') as string,
-      customerId: formData.get('customerId') as string | undefined,
-      notes: formData.get('notes') as string | undefined,
+      customerId: (formData.get('customerId') as string | null) || undefined,
+      notes: (formData.get('notes') as string | null) || undefined,
     };
 
     // Validate

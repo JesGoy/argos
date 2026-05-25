@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useActionState } from 'react';
+import { useState, useEffect, useActionState, startTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { PaymentMethod, PAYMENT_METHOD } from '@/core/domain/constants/SaleConstants';
 import { processSaleAction, type FormState } from './actions';
@@ -30,7 +30,7 @@ export function POSInterface({ products }: POSInterfaceProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(PAYMENT_METHOD.CASH);
   const [notes, setNotes] = useState('');
-  const [state, formAction] = useActionState(processSaleAction, initialState);
+  const [state, formAction, isPending] = useActionState(processSaleAction, initialState);
 
   // Handle successful sale
   useEffect(() => {
@@ -97,7 +97,9 @@ export function POSInterface({ products }: POSInterfaceProps) {
     formData.set('items', JSON.stringify(cart.map(item => ({ sku: item.sku, quantity: item.quantity }))));
     formData.set('paymentMethod', paymentMethod);
     formData.set('notes', notes);
-    formAction(formData);
+    startTransition(() => {
+      formAction(formData);
+    });
   };
 
   return (
@@ -119,9 +121,18 @@ export function POSInterface({ products }: POSInterfaceProps) {
           />
         </div>
 
-        {state.error && (
+        {(state.error || state.fieldErrors) && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
             {state.error}
+            {state.fieldErrors && (
+              <ul className="mt-1 list-disc list-inside text-sm">
+                {Object.entries(state.fieldErrors).map(([field, errors]) =>
+                  (errors as string[]).map((msg) => (
+                    <li key={`${field}-${msg}`}>{field}: {msg}</li>
+                  ))
+                )}
+              </ul>
+            )}
           </div>
         )}
 
@@ -232,10 +243,10 @@ export function POSInterface({ products }: POSInterfaceProps) {
 
           <button
             type="submit"
-            disabled={cart.length === 0}
+            disabled={cart.length === 0 || isPending}
             className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-colors"
           >
-            {cart.length === 0 ? 'Carrito Vacío' : `Procesar Venta - $${total.toFixed(2)}`}
+            {isPending ? 'Procesando...' : cart.length === 0 ? 'Carrito Vacío' : `Procesar Venta - $${total.toFixed(2)}`}
           </button>
         </form>
       </div>
