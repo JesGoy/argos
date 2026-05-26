@@ -1,6 +1,7 @@
 import { eq, ilike, or, sql, type SQL } from 'drizzle-orm';
 import type { Product, CreateProductInput, UpdateProductInput } from '@/core/domain/entities/Product';
 import type { ProductRepository } from '@/core/application/ports/ProductRepository';
+import { PRODUCT_DEFAULTS } from '@/core/domain/constants/ProductConstants';
 import { getDb } from '@/infra/db/client';
 import { productTable, type ProductRow } from '@/infra/db/schema';
 
@@ -96,7 +97,7 @@ export class ProductRepositoryDrizzle implements ProductRepository {
         description: input.description,
         category: input.category,
         unit: input.unit,
-        currentStock: input.currentStock ?? 0,
+        currentStock: PRODUCT_DEFAULTS.CURRENT_STOCK,
         minStock: input.minStock,
         reorderPoint: input.reorderPoint,
         updatedAt: new Date(),

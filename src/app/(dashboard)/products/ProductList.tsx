@@ -3,6 +3,8 @@
 import type { Product } from '@/core/domain/entities/Product';
 import Link from 'next/link';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { ConfirmModal } from '@/components/ConfirmModal';
 import { deleteProductAction } from './actions';
 
 interface ProductListProps {
@@ -10,8 +12,13 @@ interface ProductListProps {
 }
 
 export function ProductList({ products }: ProductListProps) {
+  const router = useRouter();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [productToDelete, setProductToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const categories = Array.from(new Set(products.map((p) => p.category))).sort();
 
@@ -26,15 +33,38 @@ export function ProductList({ products }: ProductListProps) {
     return matchesSearch && matchesCategory;
   });
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`¿Estás seguro de eliminar el producto "${name}"?`)) {
-      return;
-    }
+  const handleDeleteClick = (id: string, name: string) => {
+    setDeleteError(null);
+    setProductToDelete({ id, name });
+    setDeleteModalOpen(true);
+  };
 
-    const result = await deleteProductAction(id);
-    if (result.error) {
-      alert(result.error);
+  const handleConfirmDelete = async () => {
+    if (!productToDelete) return;
+
+    setIsDeleting(true);
+    setDeleteError(null);
+
+    try {
+      const result = await deleteProductAction(productToDelete.id);
+
+      if (result.error) {
+        setDeleteError(result.error);
+        return;
+      }
+
+      setDeleteModalOpen(false);
+      setProductToDelete(null);
+      router.refresh();
+    } finally {
+      setIsDeleting(false);
     }
+  };
+
+  const handleCancelDelete = () => {
+    setDeleteModalOpen(false);
+    setProductToDelete(null);
+    setDeleteError(null);
   };
 
   return (
@@ -152,7 +182,8 @@ export function ProductList({ products }: ProductListProps) {
                     </Link>
                     
                     <button
-                      onClick={() => handleDelete(product.id, product.name)}
+                      type="button"
+                      onClick={() => handleDeleteClick(product.id, product.name)}
                       className="text-red-600 hover:text-red-900"
                     >
                       Eliminar
@@ -164,6 +195,16 @@ export function ProductList({ products }: ProductListProps) {
           </tbody>
         </table>
       </div>
+
+      <ConfirmModal
+        isOpen={deleteModalOpen}
+        tipo="eliminar"
+        mensaje={`¿Estás seguro de que deseas eliminar el producto "${productToDelete?.name}"?`}
+        onAceptar={handleConfirmDelete}
+        onCancelar={handleCancelDelete}
+        isLoading={isDeleting}
+        errorMessage={deleteError ?? undefined}
+      />
     </div>
   );
 }

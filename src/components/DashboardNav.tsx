@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactElement } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { SessionData } from "@/core/application/ports/SessionService";
@@ -12,7 +12,7 @@ type NavItem = {
   href: string;
   description: string;
   roles: SessionData["role"][];
-  icon: JSX.Element;
+  icon: ReactElement;
 };
 
 const NAV_ITEMS: NavItem[] = [
@@ -37,6 +37,44 @@ const NAV_ITEMS: NavItem[] = [
           d="M3.5 7.5 12 3l8.5 4.5M3.5 7.5V16L12 21l8.5-5V7.5M12 21V13"
         />
         <path strokeLinecap="round" strokeLinejoin="round" d="m20.5 7.5-8.5 4.5-8.5-4.5" />
+      </svg>
+    ),
+  },
+  {
+    key: "pos",
+    label: "Punto de Venta",
+    href: "/pos",
+    description: "Procesar ventas y cobros",
+    roles: ["admin", "warehouse_manager", "operator"],
+    icon: (
+      <svg
+        aria-hidden
+        className="h-5 w-5"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4Zm-8 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z" />
+      </svg>
+    ),
+  },
+  {
+    key: "sales",
+    label: "Ventas",
+    href: "/sales",
+    description: "Historial y estadísticas",
+    roles: ["admin", "warehouse_manager", "operator"],
+    icon: (
+      <svg
+        aria-hidden
+        className="h-5 w-5"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2Zm0 0V9a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v10m-6 0a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2m0 0V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2Z" />
       </svg>
     ),
   },

@@ -4,6 +4,12 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Product } from "@/core/domain/entities/Product";
 import { updateProductAction, type ProductFormState } from "../../actions";
+import {
+  PRODUCT_DEFAULTS,
+  PRODUCT_UNITS,
+  PRODUCT_UNIT_LABELS,
+} from "@/core/domain/constants/ProductConstants";
+import { APP_ROUTE } from "@/config/routes";
 
 interface EditProductFormProps {
   product: Product;
@@ -21,7 +27,7 @@ export default function EditProductForm({ product }: EditProductFormProps) {
 
     if (result.success) {
       setTimeout(() => {
-        router.push("/products");
+        router.push(APP_ROUTE.PRODUCTS);
       }, 1000);
     }
 
@@ -107,11 +113,11 @@ export default function EditProductForm({ product }: EditProductFormProps) {
           className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 focus:outline-none focus:ring-blue-500"
         >
           <option value="">Selecciona una unidad</option>
-          <option value="pcs">Piezas (pcs)</option>
-          <option value="kg">Kilogramos (kg)</option>
-          <option value="liter">Litros (liter)</option>
-          <option value="meter">Metros (meter)</option>
-          <option value="box">Cajas (box)</option>
+          {PRODUCT_UNITS.map((unit) => (
+            <option key={unit} value={unit}>
+              {PRODUCT_UNIT_LABELS[unit]} ({unit})
+            </option>
+          ))}
         </select>
         {formState.fieldErrors?.unit && (
           <p className="mt-1 text-sm text-red-600">{formState.fieldErrors.unit[0]}</p>
@@ -129,7 +135,7 @@ export default function EditProductForm({ product }: EditProductFormProps) {
           name="minStock"
           defaultValue={product.minStock}
           required
-          min="0"
+          min={PRODUCT_DEFAULTS.MIN_STOCK}
           className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-blue-500"
         />
         {formState.fieldErrors?.minStock && (
@@ -148,7 +154,7 @@ export default function EditProductForm({ product }: EditProductFormProps) {
           name="reorderPoint"
           defaultValue={product.reorderPoint}
           required
-          min="0"
+          min={PRODUCT_DEFAULTS.MIN_STOCK}
           className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-blue-500"
         />
         {formState.fieldErrors?.reorderPoint && (
@@ -163,13 +169,22 @@ export default function EditProductForm({ product }: EditProductFormProps) {
       )}
 
       {/* Botón de envío */}
-      <button
-        type="submit"
-        disabled={isSubmitting}
-        className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400"
-      >
-        {isSubmitting ? "Guardando..." : "Guardar cambios"}
-      </button>
+      <div className="flex gap-4">
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400"
+        >
+          {isSubmitting ? "Guardando..." : "Guardar cambios"}
+        </button>
+        <button
+          type="button"
+          onClick={() => router.push(APP_ROUTE.PRODUCTS)}
+          className="flex-1 bg-gray-400 text-white py-2 px-4 rounded-md hover:bg-gray-500"
+        >
+          Cancelar
+        </button>
+      </div>
     </form>
   );
 }

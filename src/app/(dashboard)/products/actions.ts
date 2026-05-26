@@ -1,19 +1,16 @@
 'use server';
 
-import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
-import {
-  makeCreateProduct,
-  makeUpdateProduct,
-  makeDeleteProduct,
-} from '@/infra/container/products';
-import { createProductSchema, updateProductSchema } from '@/infra/validation/product';
+import { makeProductCommandService } from '@/infra/container/products';
+import { parseCreateProductInput, parseUpdateProductInput } from '@/infra/validation/product';
 import {
   ProductNotFoundError,
   DuplicateSKUError,
 } from '@/core/domain/errors/ProductErrors';
 import { requireRole } from '@/app/lib/auth';
 import { UnauthorizedError } from '@/core/domain/errors/AuthErrors';
+import { PRODUCT_COMMAND_SOURCE } from '@/core/domain/constants/ProductConstants';
+import { PRODUCT_MANAGEMENT_ROLES } from '@/core/domain/constants/UserConstants';
 
 /**
  * State type for product form actions
@@ -32,6 +29,10 @@ export type ProductFormState = {
   };
 };
 
+function revalidatePaths(paths: readonly string[]) {
+  paths.forEach((path) => revalidatePath(path));
+}
+
 /**
  * Server Action: Create Product
  */
@@ -39,19 +40,19 @@ export async function createProductAction(
   _prevState: ProductFormState,
   formData: FormData
 ): Promise<ProductFormState> {
-  await requireRole(['admin', 'warehouse_manager', 'operator']);
+  const session = await requireRole([...PRODUCT_MANAGEMENT_ROLES]);
 
   const rawData = {
     sku: formData.get('sku'),
     name: formData.get('name'),
-    description: formData.get('description') || undefined,
+    description: formData.get('description'),
     category: formData.get('category'),
     unit: formData.get('unit'),
-    minStock: formData.get('minStock') ? Number(formData.get('minStock')) : 0,
-    reorderPoint: formData.get('reorderPoint') ? Number(formData.get('reorderPoint')) : 10,
+    minStock: formData.get('minStock'),
+    reorderPoint: formData.get('reorderPoint'),
   };
 
-  const parsed = createProductSchema.safeParse(rawData);
+  const parsed = parseCreateProductInput(rawData);
 
   if (!parsed.success) {
     return {
@@ -60,9 +61,17 @@ export async function createProductAction(
   }
 
   try {
-    const useCase = makeCreateProduct();
-    await useCase.execute(parsed.data);
-    revalidatePath('/products');
+    const productCommands = makeProductCommandService();
+    const result = await productCommands.create(
+      {
+        userId: session.userId,
+        role: session.role,
+        source: PRODUCT_COMMAND_SOURCE.MANUAL,
+      },
+      parsed.data
+    );
+
+    revalidatePaths(result.refreshPaths);
     return { success: true };
   } catch (err) {
     if (err instanceof UnauthorizedError) {
@@ -83,7 +92,7 @@ export async function updateProductAction(
   _prevState: ProductFormState,
   formData: FormData
 ): Promise<ProductFormState> {
-  await requireRole(['admin', 'warehouse_manager', 'operator']);
+  const session = await requireRole([...PRODUCT_MANAGEMENT_ROLES]);
 
   const rawData: Record<string, unknown> = {};
 
@@ -103,12 +112,16 @@ export async function updateProductAction(
   if (unit) rawData.unit = unit;
 
   const minStock = formData.get('minStock');
-  if (minStock) rawData.minStock = Number(minStock);
+  if (typeof minStock === 'string' && minStock.length > 0) {
+    rawData.minStock = minStock;
+  }
 
   const reorderPoint = formData.get('reorderPoint');
-  if (reorderPoint) rawData.reorderPoint = Number(reorderPoint);
+  if (typeof reorderPoint === 'string' && reorderPoint.length > 0) {
+    rawData.reorderPoint = reorderPoint;
+  }
 
-  const parsed = updateProductSchema.safeParse(rawData);
+  const parsed = parseUpdateProductInput(rawData);
 
   if (!parsed.success) {
     return {
@@ -117,10 +130,18 @@ export async function updateProductAction(
   }
 
   try {
-    const useCase = makeUpdateProduct();
-    await useCase.execute(id, parsed.data);
-    revalidatePath('/products');
-    revalidatePath(`/products/${id}`);
+    const productCommands = makeProductCommandService();
+    const result = await productCommands.updateById(
+      {
+        userId: session.userId,
+        role: session.role,
+        source: PRODUCT_COMMAND_SOURCE.MANUAL,
+      },
+      id,
+      parsed.data
+    );
+
+    revalidatePaths(result.refreshPaths);
     return { success: true };
   } catch (err) {
     if (err instanceof UnauthorizedError) {
@@ -141,11 +162,19 @@ export async function updateProductAction(
  */
 export async function deleteProductAction(id: string): Promise<{ error?: string }> {
   try {
-    await requireRole(['admin', 'warehouse_manager', 'operator']);
-    const useCase = makeDeleteProduct();
-    await useCase.execute(id);
-    revalidatePath('/products');
-    redirect('/products');
+    const session = await requireRole([...PRODUCT_MANAGEMENT_ROLES]);
+    const productCommands = makeProductCommandService();
+    const result = await productCommands.deleteById(
+      {
+        userId: session.userId,
+        role: session.role,
+        source: PRODUCT_COMMAND_SOURCE.MANUAL,
+      },
+      id
+    );
+
+    revalidatePaths(result.refreshPaths);
+    return {};
   } catch (err) {
     if (err instanceof UnauthorizedError) {
       return { error: err.message };

@@ -1,6 +1,8 @@
 import { makeGetProductById } from '@/infra/container/products';
 import EditProductForm from './EditProductForm';
 import { notFound } from 'next/navigation';
+import { requireRole } from '@/app/lib/auth';
+import { PRODUCT_MANAGEMENT_ROLES } from '@/core/domain/constants/UserConstants';
 
 interface EditProductPageProps {
   params: Promise<{
@@ -9,6 +11,7 @@ interface EditProductPageProps {
 }
 
 export default async function EditProductPage({ params }: EditProductPageProps) {
+  await requireRole([...PRODUCT_MANAGEMENT_ROLES]);
   const { id } = await params;
   const useCase = makeGetProductById();
   const product = await useCase.execute(id);

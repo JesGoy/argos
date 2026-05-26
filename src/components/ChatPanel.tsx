@@ -1,13 +1,14 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { sendMessageAction } from '@/app/(dashboard)/ai-assistant/actions';
-
-interface ChatMessage {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-}
+import { useEffect, useRef, useState } from 'react';
+import { API_ROUTE } from '@/config/routes';
+import {
+  AI_ASSISTANT_TEXT,
+  AI_CHAT_HINTS,
+  AI_CHAT_MESSAGE_ID,
+  AI_CONTEXT_TEXT,
+} from '@/infra/ai/constants';
+import { useConversationChat } from '@/components/chat/useConversationChat';
 
 interface ChatPanelProps {
   isOpen: boolean;
@@ -16,107 +17,67 @@ interface ChatPanelProps {
 }
 
 export default function ChatPanel({ isOpen, onToggle, pageContext }: ChatPanelProps) {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const [conversationId, setConversationId] = useState<string>('');
-  const [error, setError] = useState<string>('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const {
+    messages,
+    setMessages,
+    input,
+    setInput,
+    isLoading,
+    error,
+    setError,
+    handleSubmit,
+  } = useConversationChat({
+    conversationId,
+    formatOutgoingMessage: (message) =>
+      pageContext
+        ? `${AI_CONTEXT_TEXT.PREFIX}${pageContext.name}${AI_CONTEXT_TEXT.SUFFIX}${message}`
+        : message,
+  });
 
   useEffect(() => {
     const initConversation = async () => {
       try {
-        const response = await fetch('/api/conversations', {
+        const response = await fetch(API_ROUTE.CONVERSATIONS, {
           method: 'POST',
         });
 
         if (!response.ok) {
-          throw new Error('No se pudo iniciar conversación');
+          throw new Error(AI_ASSISTANT_TEXT.CONVERSATION_INIT_ERROR);
         }
 
         const data = await response.json();
         setConversationId(data.id);
         setMessages([
           {
-            id: 'initial',
+            id: AI_CHAT_MESSAGE_ID.INITIAL,
             role: 'assistant',
             content: `👋 ¡Hola! Estoy en la sección de **${pageContext?.name || 'tu aplicación'}**.\n\n${pageContext?.description || 'Puedo ayudarte con cualquier consulta.'}\n\n¿Cómo puedo asistirte?`,
           },
         ]);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Error desconocido');
+        setError(err instanceof Error ? err.message : AI_ASSISTANT_TEXT.UNKNOWN_ERROR);
       }
     };
 
     if (isOpen) {
       initConversation();
     }
-  }, [isOpen]);
+  }, [isOpen, pageContext?.description, pageContext?.name, setError, setMessages]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || isLoading || !conversationId) return;
-
-    const userMessage = input.trim();
-    setInput('');
-    setIsLoading(true);
-    setError('');
-
-    const tempUserMsg: ChatMessage = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: userMessage,
-    };
-    setMessages((prev) => [...prev, tempUserMsg]);
-
-    try {
-      const messageWithContext = pageContext 
-        ? `[Contexto: ${pageContext.name}] ${userMessage}`
-        : userMessage;
-
-      const result = await sendMessageAction(conversationId, messageWithContext);
-
-      if (result.success) {
-        const assistantMsg: ChatMessage = {
-          id: result.messageId || Date.now().toString(),
-          role: 'assistant',
-          content: result.response || 'Sin respuesta',
-        };
-        setMessages((prev) => [...prev, assistantMsg]);
-      } else {
-        setError(result.error || 'Error al procesar el mensaje');
-        const errorMsg: ChatMessage = {
-          id: Date.now().toString(),
-          role: 'assistant',
-          content: `❌ ${result.error || 'Error al procesar tu mensaje'}`,
-        };
-        setMessages((prev) => [...prev, errorMsg]);
-      }
-    } catch (err) {
-      const errorMsg: ChatMessage = {
-        id: Date.now().toString(),
-        role: 'assistant',
-        content: '❌ Error de conexión. Por favor intenta de nuevo.',
-      };
-      setMessages((prev) => [...prev, errorMsg]);
-      setError('Error de conexión');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   return (
     <>
       <div className="h-screen bg-white border-l border-gray-200 shadow-lg flex flex-col w-full">
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-4 flex items-center justify-between flex-shrink-0 border-b border-blue-800">
           <div>
-            <h3 className="text-lg font-semibold">Asistente Argos</h3>
+            <h3 className="text-lg font-semibold">{AI_ASSISTANT_TEXT.PANEL_TITLE}</h3>
             <p className="text-sm text-blue-100">
-              {pageContext?.name || 'Gestor de Inventario IA'}
+              {pageContext?.name || AI_ASSISTANT_TEXT.DEFAULT_PANEL_CONTEXT}
             </p>
           </div>
           <button
@@ -211,8 +172,9 @@ export default function ChatPanel({ isOpen, onToggle, pageContext }: ChatPanelPr
           </div>
 
           <div className="text-xs text-gray-500 space-y-1">
-            <p>💡 Prueba: "Crear producto laptop SKU-001"</p>
-            <p>💡 O: "Listar productos de electrónica"</p>
+            {AI_CHAT_HINTS.map((hint) => (
+              <p key={hint}>{hint}</p>
+            ))}
           </div>
         </form>
       </div>

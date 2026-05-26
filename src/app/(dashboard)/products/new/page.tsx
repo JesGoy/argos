@@ -1,7 +1,10 @@
 import { CreateProductForm } from './CreateProductForm';
 import Link from 'next/link';
+import { requireRole } from '@/app/lib/auth';
+import { PRODUCT_MANAGEMENT_ROLES } from '@/core/domain/constants/UserConstants';
 
-export default function NewProductPage() {
+export default async function NewProductPage() {
+  await requireRole([...PRODUCT_MANAGEMENT_ROLES]);
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-3xl mx-auto">

@@ -5,6 +5,12 @@ import { useFormStatus } from 'react-dom';
 import { createProductAction, type ProductFormState } from '../actions';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
+import {
+  PRODUCT_DEFAULTS,
+  PRODUCT_UNITS,
+  PRODUCT_UNIT_LABELS,
+} from '@/core/domain/constants/ProductConstants';
+import { APP_ROUTE } from '@/config/routes';
 
 const initialState: ProductFormState = {};
 
@@ -27,7 +33,7 @@ export function CreateProductForm() {
 
   useEffect(() => {
     if (state.success) {
-      router.push('/products');
+      router.push(APP_ROUTE.PRODUCTS);
     }
   }, [state.success, router]);
 
@@ -122,14 +128,14 @@ export function CreateProductForm() {
           id="unit"
           name="unit"
           required
-          defaultValue="pcs"
+          defaultValue={PRODUCT_UNITS[0]}
           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
         >
-          <option value="pcs">Piezas (pcs)</option>
-          <option value="kg">Kilogramos (kg)</option>
-          <option value="liter">Litros (liter)</option>
-          <option value="meter">Metros (meter)</option>
-          <option value="box">Cajas (box)</option>
+          {PRODUCT_UNITS.map((unit) => (
+            <option key={unit} value={unit}>
+              {PRODUCT_UNIT_LABELS[unit]} ({unit})
+            </option>
+          ))}
         </select>
         {state.fieldErrors?.unit && (
           <p className="mt-1 text-sm text-red-600">{state.fieldErrors.unit[0]}</p>
@@ -146,8 +152,8 @@ export function CreateProductForm() {
             id="minStock"
             name="minStock"
             type="number"
-            min="0"
-            defaultValue="0"
+            min={PRODUCT_DEFAULTS.MIN_STOCK}
+            defaultValue={PRODUCT_DEFAULTS.MIN_STOCK}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
           {state.fieldErrors?.minStock && (
@@ -166,8 +172,8 @@ export function CreateProductForm() {
             id="reorderPoint"
             name="reorderPoint"
             type="number"
-            min="0"
-            defaultValue="10"
+            min={PRODUCT_DEFAULTS.MIN_STOCK}
+            defaultValue={PRODUCT_DEFAULTS.REORDER_POINT}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
           {state.fieldErrors?.reorderPoint && (
