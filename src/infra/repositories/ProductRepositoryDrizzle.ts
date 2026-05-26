@@ -4,6 +4,7 @@ import type { ProductRepository } from '@/core/application/ports/ProductReposito
 import { PRODUCT_DEFAULTS } from '@/core/domain/constants/ProductConstants';
 import { getDb } from '@/infra/db/client';
 import { productTable, type ProductRow } from '@/infra/db/schema';
+import { ProductDeletionError } from '@/core/domain/errors/ProductErrors';
 
 /**
  * Drizzle implementation of ProductRepository
@@ -120,9 +121,19 @@ export class ProductRepositoryDrizzle implements ProductRepository {
 
   async delete(id: string): Promise<void> {
     const db = getDb();
-    await db
-      .delete(productTable)
-      .where(eq(productTable.id, parseInt(id, 10)));
+    try {
+      await db
+        .delete(productTable)
+        .where(eq(productTable.id, parseInt(id, 10)));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '';
+      if (msg.includes('foreign key') || msg.includes('violates') || msg.includes('restrict')) {
+        throw new ProductDeletionError(
+          'tiene transacciones o ventas asociadas. Elimina primero los movimientos de stock y ventas relacionados, o contacta al administrador.'
+        );
+      }
+      throw err;
+    }
   }
 
   async exists(id: string): Promise<boolean> {

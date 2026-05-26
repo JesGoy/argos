@@ -6,6 +6,7 @@ import { parseCreateProductInput, parseUpdateProductInput } from '@/infra/valida
 import {
   ProductNotFoundError,
   DuplicateSKUError,
+  ProductDeletionError,
 } from '@/core/domain/errors/ProductErrors';
 import { requireRole } from '@/app/lib/auth';
 import { UnauthorizedError } from '@/core/domain/errors/AuthErrors';
@@ -180,6 +181,9 @@ export async function deleteProductAction(id: string): Promise<{ error?: string 
       return { error: err.message };
     }
     if (err instanceof ProductNotFoundError) {
+      return { error: err.message };
+    }
+    if (err instanceof ProductDeletionError) {
       return { error: err.message };
     }
     return { error: 'Error al eliminar el producto' };
