@@ -37,7 +37,7 @@ interface LayoutWrapperProps {
 
 export function LayoutWrapper({ children }: LayoutWrapperProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [panelPercentage, setPanelPercentage] = useState(AI_PANEL_UI.DEFAULT_PANEL_PERCENTAGE);
+  const [panelPercentage, setPanelPercentage] = useState<number>(AI_PANEL_UI.DEFAULT_PANEL_PERCENTAGE);
   const [isDragging, setIsDragging] = useState(false);
   const resizeRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
