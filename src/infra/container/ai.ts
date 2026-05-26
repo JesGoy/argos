@@ -79,6 +79,30 @@ export function getSaleRepository(): SaleRepository {
 }
 
 /**
+ * Sale Repository Singleton
+ */
+let saleRepoInstance: SaleRepository | null = null;
+
+export function getSaleRepository(): SaleRepository {
+  if (!saleRepoInstance) {
+    saleRepoInstance = new SaleRepositoryDrizzle();
+  }
+  return saleRepoInstance;
+}
+
+/**
+ * StockTransaction Repository Singleton
+ */
+let stockTransactionRepoInstance: StockTransactionRepository | null = null;
+
+export function getStockTransactionRepository(): StockTransactionRepository {
+  if (!stockTransactionRepoInstance) {
+    stockTransactionRepoInstance = new StockTransactionRepositoryDrizzle();
+  }
+  return stockTransactionRepoInstance;
+}
+
+/**
  * Use Case Factories
  */
 
