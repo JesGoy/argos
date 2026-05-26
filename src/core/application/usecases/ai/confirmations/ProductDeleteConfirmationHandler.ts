@@ -11,6 +11,7 @@ import type {
 import { PRODUCT_AI_ACTION } from '@/core/domain/constants/ProductConstants';
 import { MESSAGE_ROLE } from '@/core/domain/constants/ConversationConstants';
 import { AI_RESPONSE_ICON } from '@/infra/ai/constants';
+import { ProductDeletionError } from '@/core/domain/errors/ProductErrors';
 
 export class ProductDeleteConfirmationHandler implements ConfirmationHandler {
   constructor(
@@ -34,7 +35,22 @@ export class ProductDeleteConfirmationHandler implements ConfirmationHandler {
       throw new Error(`ProductDeleteConfirmationHandler: acción no soportada: ${confirmation.action}`);
     }
 
-    const result = await this.deps.productCommands.deleteBySku(actor, confirmation.sku);
+    let result;
+    try {
+      result = await this.deps.productCommands.deleteBySku(actor, confirmation.sku);
+    } catch (err) {
+      if (err instanceof ProductDeletionError) {
+        const response = `${AI_RESPONSE_ICON.WARNING} No se pudo eliminar ${confirmation.sku}: ${err.message}`;
+        const assistantMessage = await this.deps.messages.create({
+          conversationId,
+          role: MESSAGE_ROLE.ASSISTANT,
+          content: response,
+          metadata: { action: confirmation.action, success: false, executionTime: Date.now() - startTime },
+        });
+        return { response, messageId: assistantMessage.id, actionPerformed: confirmation.action, result: null, refreshPaths: [], shouldRefreshUi: false };
+      }
+      throw err;
+    }
     const response = `${AI_RESPONSE_ICON.SUCCESS} Eliminé el producto ${confirmation.sku} (${confirmation.productName}) del inventario.`;
 
     const assistantMessage = await this.deps.messages.create({
