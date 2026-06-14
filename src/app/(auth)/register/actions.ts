@@ -1,28 +1,47 @@
 'use server';
 
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 
 import { registerSchema } from '@/infra/validation/auth';
 import { makeRegisterUser } from '@/infra/container/auth';
 import { DuplicateUserError } from '@/core/domain/errors/AuthErrors';
 import { isRedirectError } from 'next/dist/client/components/redirect-error';
+import { rateLimit } from '@/infra/security/RateLimiter';
+import { AUTH_RATE_LIMIT, AUTH_SESSION_MAX_AGE_SECONDS } from '@/config/security';
+import { logger } from '@/infra/observability/logger';
 
 export type RegisterActionState = {
   error?: string;
   fieldErrors?: Record<string, string[]>;
 };
 
+async function clientKey(prefix: string): Promise<string> {
+  const h = await headers();
+  const ip =
+    h.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    h.get('x-real-ip') ||
+    'unknown';
+  return `${prefix}:${ip}`;
+}
+
 export async function registerAction(
   _prev: RegisterActionState,
   formData: FormData
 ): Promise<RegisterActionState> {
+  const key = await clientKey('register');
+  const rl = rateLimit(key, AUTH_RATE_LIMIT.REGISTER_MAX_ATTEMPTS, AUTH_RATE_LIMIT.REGISTER_WINDOW_MS);
+  if (!rl.allowed) {
+    logger.warn('register.rate_limited', { component: 'auth', key, retryAfter: rl.retryAfterSeconds });
+    return { error: `Demasiadas solicitudes. Intenta nuevamente en ${rl.retryAfterSeconds}s.` };
+  }
+
   const parsed = registerSchema.safeParse({
     username: formData.get('username'),
     email: formData.get('email'),
     password: formData.get('password'),
     fullName: formData.get('fullName') || undefined,
-    role: formData.get('role') || undefined,
+    organizationName: formData.get('organizationName') || undefined,
   });
 
   if (!parsed.success) {
@@ -37,12 +56,13 @@ export async function registerAction(
     cookieStore.set('session', token, {
       httpOnly: true,
       sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
+      secure: true,
       path: '/',
-      maxAge: 60 * 60 * 8,
+      maxAge: AUTH_SESSION_MAX_AGE_SECONDS,
     });
 
-    redirect('/products');
+    // New org owner → guided onboarding (set profile + optional demo data).
+    redirect('/onboarding');
   } catch (error) {
     if (isRedirectError(error)) {
       throw error;
@@ -53,6 +73,7 @@ export async function registerAction(
     if (error instanceof DuplicateUserError) {
       return { error: error.message };
     }
+    logger.error('register.failed', { component: 'auth' }, error);
     return { error: 'No se pudo registrar el usuario' };
   }
 }

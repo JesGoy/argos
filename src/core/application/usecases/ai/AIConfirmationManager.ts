@@ -27,7 +27,19 @@ export class AIConfirmationManager {
       return undefined;
     }
 
-    return this.extractPendingConfirmation(lastAssistantMessage.metadata);
+    const pending = this.extractPendingConfirmation(lastAssistantMessage.metadata);
+    if (!pending) {
+      return undefined;
+    }
+
+    // Anti-replay: ignore a confirmation the user left hanging past the window,
+    // so a late "sí" can't execute a stale destructive action.
+    const ageMs = Date.now() - new Date(lastAssistantMessage.createdAt).getTime();
+    if (ageMs > CONVERSATION_CONFIRMATION.EXPIRY_MS) {
+      return undefined;
+    }
+
+    return pending;
   }
 
   extractPendingConfirmation(source: unknown): AIPendingConfirmation | undefined {

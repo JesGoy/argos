@@ -1,5 +1,5 @@
 import { eq, desc } from 'drizzle-orm';
-import type { Message, CreateMessageInput } from '@/core/domain/entities/Message';
+import type { Message, CreateMessageInput, MessageMetadata } from '@/core/domain/entities/Message';
 import type { MessageRepository } from '@/core/application/ports/MessageRepository';
 import { getDb } from '@/infra/db/client';
 import { messageTable, type MessageRow } from '@/infra/db/schema';
@@ -17,7 +17,7 @@ export class MessageRepositoryDrizzle implements MessageRepository {
       conversationId: String(row.conversationId),
       role: row.role,
       content: row.content,
-      metadata: row.metadata as any,
+      metadata: (row.metadata ?? undefined) as MessageMetadata | undefined,
       createdAt: row.createdAt,
     };
   }
@@ -53,7 +53,7 @@ export class MessageRepositoryDrizzle implements MessageRepository {
         conversationId: parseInt(input.conversationId, 10),
         role: input.role,
         content: input.content,
-        metadata: input.metadata as any,
+        metadata: input.metadata as MessageMetadata | undefined,
       })
       .returning();
 

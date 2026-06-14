@@ -3,16 +3,24 @@
 import { revalidatePath } from 'next/cache';
 import { requireRole } from '@/app/lib/auth';
 import { SALES_AUTHORIZED_ROLES } from '@/core/domain/constants/UserConstants';
-import { makeProcessSale, makeAdjustStock } from '@/infra/container/sales';
+import { PRODUCT_COMMAND_SOURCE } from '@/core/domain/constants/ProductConstants';
+import { makeSalesCommandService, makeAdjustStock } from '@/infra/container/sales';
+import { SalesCommandService } from '@/core/application/usecases/sales/SalesCommandService';
 import { createSaleSchema, adjustStockSchema } from '@/infra/validation/sale';
-import type { ProcessSaleInput } from '@/core/application/usecases/sales/ProcessSale';
 import type { AdjustStockInput } from '@/core/application/usecases/sales/AdjustStock';
 
 export interface FormState {
   success?: boolean;
   error?: string;
   fieldErrors?: Record<string, string[]>;
-  result?: any;
+  result?: {
+    saleId?: string;
+    saleNumber?: string;
+    totalAmount?: number;
+    transactionId?: string;
+    productId?: string;
+    quantity?: number;
+  };
 }
 
 /**
@@ -42,24 +50,24 @@ export async function processSaleAction(
       };
     }
 
-    // Execute use case
-    const useCase = makeProcessSale();
-    const input: ProcessSaleInput = {
-      ...parsed.data,
-      userId: parseInt(session.userId, 10),
-    };
+    // Execute via the shared command service (role check + refresh paths).
+    const salesCommands = makeSalesCommandService(session.organizationId);
+    const actor = SalesCommandService.makeActor(
+      parseInt(session.userId, 10),
+      session.role,
+      PRODUCT_COMMAND_SOURCE.MANUAL
+    );
 
-    const result = await useCase.execute(input);
+    const { data, refreshPaths } = await salesCommands.processSale(actor, parsed.data);
 
-    revalidatePath('/pos');
-    revalidatePath('/sales');
+    refreshPaths.forEach((path) => revalidatePath(path));
 
     return {
       success: true,
       result: {
-        saleId: result.sale.id,
-        saleNumber: result.sale.saleNumber,
-        totalAmount: result.sale.totalAmount,
+        saleId: data.sale.id,
+        saleNumber: data.sale.saleNumber,
+        totalAmount: data.sale.totalAmount,
       },
     };
   } catch (err) {
@@ -99,7 +107,7 @@ export async function adjustStockAction(
     }
 
     // Execute use case
-    const useCase = makeAdjustStock();
+    const useCase = makeAdjustStock(session.organizationId);
     const input: AdjustStockInput = {
       ...parsed.data,
       userId: parseInt(session.userId, 10),

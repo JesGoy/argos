@@ -11,6 +11,7 @@ import {
   PRODUCT_UNIT_LABELS,
 } from '@/core/domain/constants/ProductConstants';
 import { APP_ROUTE } from '@/config/routes';
+import { PlanLimitBanner } from '@/components/billing/PlanLimitBanner';
 
 const initialState: ProductFormState = {};
 
@@ -39,7 +40,9 @@ export function CreateProductForm() {
 
   return (
     <form action={formAction} className="space-y-6">
-      {state.error && (
+      {state.limit && <PlanLimitBanner limit={state.limit} />}
+
+      {state.error && !state.limit && (
         <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-800">
           {state.error}
         </div>
@@ -140,6 +143,62 @@ export function CreateProductForm() {
         {state.fieldErrors?.unit && (
           <p className="mt-1 text-sm text-red-600">{state.fieldErrors.unit[0]}</p>
         )}
+      </div>
+
+      {/* Selling Price and Unit Cost */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <label htmlFor="sellingPrice" className="block text-sm font-medium text-gray-700 mb-1">
+            Precio de Venta
+          </label>
+          <input
+            id="sellingPrice"
+            name="sellingPrice"
+            type="number"
+            min={0}
+            step="0.01"
+            defaultValue={0}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
+          {state.fieldErrors?.sellingPrice && (
+            <p className="mt-1 text-sm text-red-600">{state.fieldErrors.sellingPrice[0]}</p>
+          )}
+        </div>
+
+        <div>
+          <label htmlFor="unitCost" className="block text-sm font-medium text-gray-700 mb-1">
+            Costo Unitario
+          </label>
+          <input
+            id="unitCost"
+            name="unitCost"
+            type="number"
+            min={0}
+            step="0.01"
+            defaultValue={0}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
+          {state.fieldErrors?.unitCost && (
+            <p className="mt-1 text-sm text-red-600">{state.fieldErrors.unitCost[0]}</p>
+          )}
+        </div>
+      </div>
+
+      {/* Composite (recipe) flag */}
+      <div className="flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
+        <input
+          id="isComposite"
+          name="isComposite"
+          type="checkbox"
+          className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+        />
+        <label htmlFor="isComposite" className="text-sm text-gray-700">
+          <span className="font-medium">Producto compuesto (con receta)</span>
+          <span className="block text-gray-500">
+            Marca esto para productos terminados que se arman con ingredientes (ej: un capuchino).
+            Al venderlo se descuenta el stock de sus ingredientes. Define la receta luego de crearlo, al editarlo.
+          </span>
+        </label>
       </div>
 
       {/* Min Stock and Reorder Point */}

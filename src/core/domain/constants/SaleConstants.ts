@@ -69,3 +69,14 @@ export const SALE_STATUS_COLORS: Record<SaleStatus, { bg: string; text: string }
   completed: { bg: 'bg-green-100', text: 'text-green-800' },
   cancelled: { bg: 'bg-red-100', text: 'text-red-800' },
 } as const;
+
+/**
+ * Sales command actions — shared by manual and AI channels via SalesCommandService.
+ */
+export const SALE_COMMAND_ACTION = {
+  PROCESS_SALE: 'process_sale' as const,
+  CANCEL_SALE: 'cancel_sale' as const,
+} as const;
+
+export type SaleCommandAction =
+  (typeof SALE_COMMAND_ACTION)[keyof typeof SALE_COMMAND_ACTION];

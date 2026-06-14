@@ -1,16 +1,15 @@
-import { eq, desc, and } from 'drizzle-orm';
+import { eq, desc, and, type SQL } from 'drizzle-orm';
 import type { Conversation, CreateConversationInput } from '@/core/domain/entities/Conversation';
 import type { ConversationRepository } from '@/core/application/ports/ConversationRepository';
 import { getDb } from '@/infra/db/client';
 import { conversationTable, type ConversationRow } from '@/infra/db/schema';
 
 /**
- * Drizzle implementation of ConversationRepository
+ * Drizzle implementation of ConversationRepository, scoped to one organization.
  */
 export class ConversationRepositoryDrizzle implements ConversationRepository {
-  /**
-   * Maps database row to domain entity
-   */
+  constructor(private readonly organizationId: number) {}
+
   private mapToEntity(row: ConversationRow): Conversation {
     return {
       id: String(row.id),
@@ -21,12 +20,16 @@ export class ConversationRepositoryDrizzle implements ConversationRepository {
     };
   }
 
+  private orgScope(): SQL {
+    return eq(conversationTable.organizationId, this.organizationId);
+  }
+
   async findById(id: string): Promise<Conversation | null> {
     const db = getDb();
     const rows = await db
       .select()
       .from(conversationTable)
-      .where(eq(conversationTable.id, parseInt(id, 10)))
+      .where(and(eq(conversationTable.id, parseInt(id, 10)), this.orgScope()))
       .limit(1);
 
     const row = rows[0];
@@ -38,7 +41,7 @@ export class ConversationRepositoryDrizzle implements ConversationRepository {
     const rows = await db
       .select()
       .from(conversationTable)
-      .where(eq(conversationTable.userId, userId))
+      .where(and(eq(conversationTable.userId, userId), this.orgScope()))
       .orderBy(desc(conversationTable.updatedAt));
 
     return rows.map((row) => this.mapToEntity(row));
@@ -49,6 +52,7 @@ export class ConversationRepositoryDrizzle implements ConversationRepository {
     const [row] = await db
       .insert(conversationTable)
       .values({
+        organizationId: this.organizationId,
         userId: input.userId,
         title: input.title,
         updatedAt: new Date(),
@@ -66,14 +70,14 @@ export class ConversationRepositoryDrizzle implements ConversationRepository {
         title,
         updatedAt: new Date(),
       })
-      .where(eq(conversationTable.id, parseInt(id, 10)));
+      .where(and(eq(conversationTable.id, parseInt(id, 10)), this.orgScope()));
   }
 
   async delete(id: string): Promise<void> {
     const db = getDb();
     await db
       .delete(conversationTable)
-      .where(eq(conversationTable.id, parseInt(id, 10)));
+      .where(and(eq(conversationTable.id, parseInt(id, 10)), this.orgScope()));
   }
 
   async exists(id: string): Promise<boolean> {
@@ -89,7 +93,8 @@ export class ConversationRepositoryDrizzle implements ConversationRepository {
       .where(
         and(
           eq(conversationTable.id, parseInt(id, 10)),
-          eq(conversationTable.userId, userId)
+          eq(conversationTable.userId, userId),
+          this.orgScope()
         )
       )
       .limit(1);

@@ -52,7 +52,6 @@ export const PRODUCT_UNIT_ABBR: Record<ProductUnit, string> = {
 export const PRODUCT_DEFAULTS = {
   MIN_STOCK: 0,
   REORDER_POINT: 10,
-  CURRENT_STOCK: 0,
 } as const;
 
 export const PRODUCT_COMMAND_SOURCE = {

@@ -1,17 +1,21 @@
 'use client';
 
-import type { Product } from '@/core/domain/entities/Product';
+import type { ProductWithStock } from '@/core/domain/entities/Product';
 import Link from 'next/link';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ConfirmModal } from '@/components/ConfirmModal';
+import { isLowStock } from '@/core/domain/services/InventoryRules';
+import { formatMoney } from '@/config/money';
 import { deleteProductAction } from './actions';
 
 interface ProductListProps {
-  products: Product[];
+  products: ProductWithStock[];
+  /** Org ISO 4217 currency for price display. */
+  currency: string;
 }
 
-export function ProductList({ products }: ProductListProps) {
+export function ProductList({ products, currency }: ProductListProps) {
   const router = useRouter();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
@@ -125,6 +129,12 @@ export function ProductList({ products }: ProductListProps) {
                 Unidad
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Precio
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Stock
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Stock Mín
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -138,7 +148,7 @@ export function ProductList({ products }: ProductListProps) {
           <tbody className="bg-white divide-y divide-gray-200">
             {filteredProducts.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                <td colSpan={9} className="px-6 py-12 text-center text-gray-500">
                   No se encontraron productos
                 </td>
               </tr>
@@ -165,6 +175,20 @@ export function ProductList({ products }: ProductListProps) {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {product.unit}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {formatMoney(product.sellingPrice, currency)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <span
+                      className={`px-2 py-1 text-xs font-medium rounded-full ${
+                        isLowStock(product.currentStock, product.reorderPoint)
+                          ? 'bg-orange-100 text-orange-800'
+                          : 'bg-green-100 text-green-800'
+                      }`}
+                    >
+                      {product.currentStock}
+                    </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {product.minStock}

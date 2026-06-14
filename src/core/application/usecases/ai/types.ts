@@ -3,7 +3,10 @@ import type {
   ProductCommandActor,
   ProductDeleteConfirmation,
 } from '@/core/application/usecases/products/ProductCommandService';
-import type { StockOutConfirmation } from '@/core/application/usecases/stock/StockCommandService';
+import type {
+  StockOutConfirmation,
+  WasteConfirmation,
+} from '@/core/application/usecases/stock/StockCommandService';
 import type { Message } from '@/core/domain/entities/Message';
 
 export interface ProcessAICommandOutput {
@@ -35,4 +38,7 @@ export interface ConfirmationHandler {
   ): Promise<ProcessAICommandOutput>;
 }
 
-export type AIPendingConfirmation = ProductDeleteConfirmation | StockOutConfirmation;
+export type AIPendingConfirmation =
+  | ProductDeleteConfirmation
+  | StockOutConfirmation
+  | WasteConfirmation;

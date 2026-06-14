@@ -1,17 +1,17 @@
-import { eq, and, gte, lte, sql, desc } from 'drizzle-orm';
+import { eq, and, gte, lte, sql, desc, type SQL } from 'drizzle-orm';
 import type { Sale, CreateSaleInput, UpdateSaleInput } from '@/core/domain/entities/Sale';
 import type { SaleRepository } from '@/core/application/ports/SaleRepository';
+import type { DailySalesPoint } from '@/core/domain/entities/Analytics';
 import { SALE_STATUS } from '@/core/domain/constants/SaleConstants';
-import { getDb } from '@/infra/db/client';
+import { getDb, type DbExecutor } from '@/infra/db/client';
 import { saleTable, type SaleRow } from '@/infra/db/schema';
 
 /**
- * Drizzle implementation of SaleRepository
+ * Drizzle implementation of SaleRepository, scoped to one organization.
  */
 export class SaleRepositoryDrizzle implements SaleRepository {
-  /**
-   * Maps database row to domain entity
-   */
+  constructor(private readonly organizationId: number) {}
+
   private mapToEntity(row: SaleRow): Sale {
     return {
       id: String(row.id),
@@ -28,12 +28,16 @@ export class SaleRepositoryDrizzle implements SaleRepository {
     };
   }
 
+  private orgScope(): SQL {
+    return eq(saleTable.organizationId, this.organizationId);
+  }
+
   async findById(id: string): Promise<Sale | null> {
     const db = getDb();
     const rows = await db
       .select()
       .from(saleTable)
-      .where(eq(saleTable.id, parseInt(id, 10)))
+      .where(and(eq(saleTable.id, parseInt(id, 10)), this.orgScope()))
       .limit(1);
 
     const row = rows[0];
@@ -45,22 +49,21 @@ export class SaleRepositoryDrizzle implements SaleRepository {
     const rows = await db
       .select()
       .from(saleTable)
-      .where(eq(saleTable.saleNumber, saleNumber))
+      .where(and(eq(saleTable.saleNumber, saleNumber), this.orgScope()))
       .limit(1);
 
     const row = rows[0];
     return row ? this.mapToEntity(row) : null;
   }
 
-  async findAll(filters?: {
+  private buildFilters(filters?: {
     startDate?: Date;
     endDate?: Date;
     status?: 'pending' | 'completed' | 'cancelled';
     userId?: number;
     customerId?: string;
-  }): Promise<Sale[]> {
-    const db = getDb();
-    const conditions = [];
+  }): SQL[] {
+    const conditions: SQL[] = [this.orgScope()];
 
     if (filters?.startDate) {
       conditions.push(gte(saleTable.createdAt, filters.startDate));
@@ -82,16 +85,53 @@ export class SaleRepositoryDrizzle implements SaleRepository {
       conditions.push(eq(saleTable.customerId, parseInt(filters.customerId, 10)));
     }
 
+    return conditions;
+  }
+
+  async findAll(filters?: {
+    startDate?: Date;
+    endDate?: Date;
+    status?: 'pending' | 'completed' | 'cancelled';
+    userId?: number;
+    customerId?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<Sale[]> {
+    const db = getDb();
+    const conditions = this.buildFilters(filters);
+
     const query = db
       .select()
       .from(saleTable)
-      .orderBy(desc(saleTable.createdAt));
+      .where(and(...conditions))
+      .orderBy(desc(saleTable.createdAt))
+      .$dynamic();
 
-    const rows = conditions.length > 0
-      ? await query.where(and(...conditions))
-      : await query;
+    if (filters?.limit !== undefined) {
+      query.limit(filters.limit);
+    }
+    if (filters?.offset !== undefined) {
+      query.offset(filters.offset);
+    }
 
+    const rows = await query;
     return rows.map((row) => this.mapToEntity(row));
+  }
+
+  async count(filters?: {
+    startDate?: Date;
+    endDate?: Date;
+    status?: 'pending' | 'completed' | 'cancelled';
+    userId?: number;
+    customerId?: string;
+  }): Promise<number> {
+    const db = getDb();
+    const conditions = this.buildFilters(filters);
+    const result = await db
+      .select({ total: sql<number>`COUNT(*)` })
+      .from(saleTable)
+      .where(and(...conditions));
+    return Number(result[0]?.total) || 0;
   }
 
   async getTodayStats(): Promise<{
@@ -111,6 +151,7 @@ export class SaleRepositoryDrizzle implements SaleRepository {
       .from(saleTable)
       .where(
         and(
+          this.orgScope(),
           gte(saleTable.createdAt, today),
           eq(saleTable.status, SALE_STATUS.COMPLETED)
         )
@@ -145,6 +186,7 @@ export class SaleRepositoryDrizzle implements SaleRepository {
       .from(saleTable)
       .where(
         and(
+          this.orgScope(),
           gte(saleTable.createdAt, startDate),
           lte(saleTable.createdAt, endDate),
           eq(saleTable.status, SALE_STATUS.COMPLETED)
@@ -160,6 +202,7 @@ export class SaleRepositoryDrizzle implements SaleRepository {
       .from(saleTable)
       .where(
         and(
+          this.orgScope(),
           gte(saleTable.createdAt, startDate),
           lte(saleTable.createdAt, endDate),
           eq(saleTable.status, SALE_STATUS.COMPLETED)
@@ -185,13 +228,14 @@ export class SaleRepositoryDrizzle implements SaleRepository {
     };
   }
 
-  async create(input: CreateSaleInput): Promise<Sale> {
-    const db = getDb();
+  async create(input: CreateSaleInput, executor?: unknown): Promise<Sale> {
+    const db = (executor as DbExecutor) ?? getDb();
     const saleNumber = await this.generateSaleNumber();
 
     const [row] = await db
       .insert(saleTable)
       .values({
+        organizationId: this.organizationId,
         saleNumber,
         userId: input.userId,
         customerId: input.customerId ? parseInt(input.customerId, 10) : null,
@@ -216,18 +260,18 @@ export class SaleRepositoryDrizzle implements SaleRepository {
         customerId: input.customerId ? parseInt(input.customerId, 10) : undefined,
         updatedAt: new Date(),
       })
-      .where(eq(saleTable.id, parseInt(id, 10)));
+      .where(and(eq(saleTable.id, parseInt(id, 10)), this.orgScope()));
   }
 
-  async cancel(id: string): Promise<void> {
-    const db = getDb();
+  async cancel(id: string, executor?: unknown): Promise<void> {
+    const db = (executor as DbExecutor) ?? getDb();
     await db
       .update(saleTable)
       .set({
         status: SALE_STATUS.CANCELLED,
         updatedAt: new Date(),
       })
-      .where(eq(saleTable.id, parseInt(id, 10)));
+      .where(and(eq(saleTable.id, parseInt(id, 10)), this.orgScope()));
   }
 
   async generateSaleNumber(): Promise<string> {
@@ -236,15 +280,15 @@ export class SaleRepositoryDrizzle implements SaleRepository {
     const year = today.getFullYear();
     const month = String(today.getMonth() + 1).padStart(2, '0');
     const day = String(today.getDate()).padStart(2, '0');
-    
+
     const prefix = `V${year}${month}${day}`;
 
-    // Get the last sale number for today
+    // Last sale number for today, within this organization.
     const likePattern = `${prefix}%`;
     const lastSale = await db
       .select()
       .from(saleTable)
-      .where(sql`${saleTable.saleNumber} LIKE ${likePattern}`)
+      .where(and(this.orgScope(), sql`${saleTable.saleNumber} LIKE ${likePattern}`))
       .orderBy(desc(saleTable.saleNumber))
       .limit(1);
 
@@ -252,11 +296,39 @@ export class SaleRepositoryDrizzle implements SaleRepository {
       return `${prefix}-0001`;
     }
 
-    // Extract the sequence number and increment
     const lastNumber = lastSale[0].saleNumber;
     const lastSequence = parseInt(lastNumber.split('-')[1], 10);
     const nextSequence = String(lastSequence + 1).padStart(4, '0');
 
     return `${prefix}-${nextSequence}`;
+  }
+
+  async getDailySalesTrend(startDate: Date, endDate: Date): Promise<DailySalesPoint[]> {
+    const db = getDb();
+    const dayExpr = sql`date_trunc('day', ${saleTable.createdAt})`;
+
+    const rows = await db
+      .select({
+        date: sql<string>`to_char(date_trunc('day', ${saleTable.createdAt}), 'YYYY-MM-DD')`,
+        totalAmount: sql<number>`COALESCE(SUM(${saleTable.totalAmount}), 0)`,
+        totalSales: sql<number>`COUNT(*)`,
+      })
+      .from(saleTable)
+      .where(
+        and(
+          this.orgScope(),
+          eq(saleTable.status, SALE_STATUS.COMPLETED),
+          gte(saleTable.createdAt, startDate),
+          lte(saleTable.createdAt, endDate)
+        )
+      )
+      .groupBy(dayExpr)
+      .orderBy(dayExpr);
+
+    return rows.map((row) => ({
+      date: row.date,
+      totalAmount: Number(row.totalAmount) || 0,
+      totalSales: Number(row.totalSales) || 0,
+    }));
   }
 }

@@ -1,6 +1,7 @@
 import type { SaleRepository } from '@/core/application/ports/SaleRepository';
 import type { SaleItemRepository } from '@/core/application/ports/SaleItemRepository';
 import type { StockTransactionRepository } from '@/core/application/ports/StockTransactionRepository';
+import type { TransactionRunner } from '@/core/application/ports/TransactionRunner';
 import { SALE_STATUS } from '@/core/domain/constants/SaleConstants';
 import { TRANSACTION_TYPE } from '@/core/domain/constants/StockConstants';
 import { SaleNotFoundError, SaleAlreadyCompletedError } from '@/core/domain/errors/POSErrors';
@@ -15,6 +16,7 @@ export class CancelSale {
       sales: SaleRepository;
       saleItems: SaleItemRepository;
       stockTransactions: StockTransactionRepository;
+      transaction: TransactionRunner;
     }
   ) {}
 
@@ -43,9 +45,10 @@ export class CancelSale {
       saleId: sale.id,
     }));
 
-    await this.deps.stockTransactions.createBatch(reverseTransactions);
-
-    // Cancel the sale
-    await this.deps.sales.cancel(saleId);
+    // Restore stock and cancel the sale atomically.
+    await this.deps.transaction.run(async (tx) => {
+      await this.deps.stockTransactions.createBatch(reverseTransactions, tx);
+      await this.deps.sales.cancel(saleId, tx);
+    });
   }
 }

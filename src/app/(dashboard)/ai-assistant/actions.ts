@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { makeProcessAICommand, makeCreateConversation } from '@/infra/container/ai';
 import { requireSession } from '@/app/lib/auth';
+import { getOrgFormatting } from '@/app/lib/org';
 import { AI_ASSISTANT_TEXT } from '@/infra/ai/constants';
 
 export interface SendMessageActionResult {
@@ -25,7 +26,7 @@ export async function createConversationAction() {
       throw new Error(AI_ASSISTANT_TEXT.INVALID_USER_ID);
     }
 
-    const createConversation = makeCreateConversation();
+    const createConversation = makeCreateConversation(session.organizationId);
     const conversation = await createConversation.execute({
       userId,
       title: AI_ASSISTANT_TEXT.NEW_CONVERSATION_TITLE,
@@ -58,7 +59,8 @@ export async function sendMessageAction(
       throw new Error(AI_ASSISTANT_TEXT.INVALID_USER_ID);
     }
 
-    const processCommand = makeProcessAICommand();
+    const { currency } = await getOrgFormatting(session.organizationId);
+    const processCommand = makeProcessAICommand(session.organizationId, currency);
     const result = await processCommand.execute({
       userId,
       userRole: session.role,

@@ -3,6 +3,7 @@ import type { SaleRepository } from '@/core/application/ports/SaleRepository';
 import type { AIFunctionProvider } from '@/core/application/usecases/ai/types';
 import type { ProductCommandActor } from '@/core/application/usecases/products/ProductCommandService';
 import type { Message } from '@/core/domain/entities/Message';
+import { SALES_AUTHORIZED_ROLES } from '@/core/domain/constants/UserConstants';
 import { AI_ACTION } from '@/infra/ai/constants';
 
 export interface SalesTodayAIResult {
@@ -33,7 +34,7 @@ export interface SalesListAIResult {
   }>;
 }
 
-const SALES_AI_ACTION = {
+export const SALES_AI_ACTION = {
   GET_TODAY: AI_ACTION.GET_SALES_TODAY,
   GET_BY_PERIOD: 'get_sales_by_period',
   GET_RECENT: 'get_recent_sales',
@@ -50,7 +51,12 @@ export class SalesAIFunctionProvider implements AIFunctionProvider {
   }
 
   getFunctions(actor: ProductCommandActor, _history: Message[]) {
-    void actor;
+    void _history;
+
+    // Sales data is for sales-authorized roles; viewers don't get these tools.
+    if (!SALES_AUTHORIZED_ROLES.includes(actor.role)) {
+      return [];
+    }
 
     return [
       {

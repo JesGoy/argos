@@ -1,7 +1,11 @@
 import type { AIResultFormatter } from '@/core/application/usecases/ai/types';
 import type { StockTransaction } from '@/core/domain/entities/StockTransaction';
 import { STOCK_AI_ACTION } from '@/core/domain/constants/StockConstants';
-import { TRANSACTION_TYPE_LABELS } from '@/core/domain/constants/StockConstants';
+import {
+  TRANSACTION_TYPE_LABELS,
+  WASTE_REASON_LABELS,
+  type WasteReason,
+} from '@/core/domain/constants/StockConstants';
 import { AI_RESPONSE_ICON } from '@/infra/ai/constants';
 
 interface StockTransactionResult {
@@ -27,6 +31,18 @@ interface StockOutPendingResult {
   };
 }
 
+interface WastePendingResult {
+  requiresConfirmation: boolean;
+  confirmation: {
+    action: string;
+    sku: string;
+    productName: string;
+    quantity: number;
+    category: string;
+    reason: string;
+  };
+}
+
 export class StockAIResponseFormatter implements AIResultFormatter {
   supportsAction(action: string): boolean {
     return Object.values(STOCK_AI_ACTION).includes(action as (typeof STOCK_AI_ACTION)[keyof typeof STOCK_AI_ACTION]);
@@ -38,6 +54,15 @@ export class StockAIResponseFormatter implements AIResultFormatter {
       if (pending?.requiresConfirmation && pending.confirmation) {
         const c = pending.confirmation;
         return `${AI_RESPONSE_ICON.WARNING} Necesito confirmación antes de registrar la salida de stock:\n\n• Producto: ${c.productName} (${c.sku})\n• Cantidad a reducir: ${c.quantity} unidades\n• Motivo: ${c.reason}\n\nEsta operación reducirá el stock disponible. ¿Confirmas? (sí / no)`;
+      }
+    }
+
+    if (action === STOCK_AI_ACTION.RECORD_WASTE) {
+      const pending = result as WastePendingResult;
+      if (pending?.requiresConfirmation && pending.confirmation) {
+        const c = pending.confirmation;
+        const categoryLabel = WASTE_REASON_LABELS[c.category as WasteReason] ?? c.category;
+        return `${AI_RESPONSE_ICON.WARNING} Necesito confirmación antes de registrar la merma:\n\n• Producto: ${c.productName} (${c.sku})\n• Cantidad: ${c.quantity} unidades\n• Categoría: ${categoryLabel}\n• Nota: ${c.reason}\n\nEsta operación reducirá el stock disponible. ¿Confirmas? (sí / no)`;
       }
     }
 

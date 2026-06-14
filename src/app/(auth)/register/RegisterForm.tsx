@@ -27,6 +27,7 @@ export function RegisterForm() {
     email: '',
     password: '',
     fullName: '',
+    organizationName: '',
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -114,11 +115,41 @@ export function RegisterForm() {
             <p className="text-sm text-red-600">{state.fieldErrors.fullName[0]}</p>
           )}
         </div>
+
+        <div className="space-y-2">
+          <label htmlFor="organizationName" className="text-sm font-medium text-gray-700">
+            Nombre del negocio (opcional)
+          </label>
+          <input
+            id="organizationName"
+            name="organizationName"
+            type="text"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:border-blue-500 focus:outline-none"
+            placeholder="Mi Cafetería"
+            value={values.organizationName}
+            onChange={handleChange}
+          />
+          {state.fieldErrors?.organizationName?.[0] && (
+            <p className="text-sm text-red-600">{state.fieldErrors.organizationName[0]}</p>
+          )}
+        </div>
       </div>
 
       {state.error && <p className="text-sm text-red-600">{state.error}</p>}
 
       <SubmitButton />
+
+      <p className="text-center text-xs text-gray-500">
+        Al crear una cuenta aceptas los{' '}
+        <a href="/legal/terms" className="text-blue-600 hover:underline">
+          Términos de Servicio
+        </a>{' '}
+        y la{' '}
+        <a href="/legal/privacy" className="text-blue-600 hover:underline">
+          Política de Privacidad
+        </a>
+        .
+      </p>
     </form>
   );
 }

@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
 import ChatPanel from './ChatPanel';
+import { ErrorBoundary } from './ErrorBoundary';
 import { APP_ROUTE } from '@/config/routes';
 import { AI_PANEL_UI } from '@/config/ui';
 
@@ -92,14 +93,14 @@ export function LayoutWrapper({ children }: LayoutWrapperProps) {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden">
-      <div 
+      <div
         className="flex-1 overflow-auto bg-white"
         style={{
           minWidth: `${AI_PANEL_UI.MIN_CONTENT_PERCENTAGE}%`,
           flex: isOpen ? `${100 - panelPercentage}` : 1,
         }}
       >
-        {children}
+        <ErrorBoundary>{children}</ErrorBoundary>
       </div>
 
       {isOpen && (

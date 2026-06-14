@@ -63,4 +63,4 @@ if (!username || !role) {
   process.exit(1);
 }
 
-updateUserRole(username, role as any);
+updateUserRole(username, role as typeof validRoles[number]);

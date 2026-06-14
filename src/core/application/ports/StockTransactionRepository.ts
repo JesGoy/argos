@@ -1,4 +1,8 @@
 import type { StockTransaction, CreateStockTransactionInput } from '@/core/domain/entities/StockTransaction';
+import type {
+  WasteProductAggregate,
+  WasteCategoryAggregate,
+} from '@/core/domain/entities/Analytics';
 
 /**
  * StockTransaction Repository Port
@@ -32,12 +36,23 @@ export interface StockTransactionRepository {
   findByDateRange(startDate: Date, endDate: Date): Promise<StockTransaction[]>;
 
   /**
-   * Create a new stock transaction
+   * Create a new stock transaction. Pass `executor` to run inside a transaction.
    */
-  create(input: CreateStockTransactionInput): Promise<StockTransaction>;
+  create(input: CreateStockTransactionInput, executor?: unknown): Promise<StockTransaction>;
 
   /**
-   * Create multiple stock transactions in batch
+   * Create multiple stock transactions in batch. Pass `executor` to run inside a transaction.
    */
-  createBatch(inputs: CreateStockTransactionInput[]): Promise<StockTransaction[]>;
+  createBatch(inputs: CreateStockTransactionInput[], executor?: unknown): Promise<StockTransaction[]>;
+
+  /**
+   * Waste (merma) rollup by product over a window — units lost and their cost
+   * (units × current unitCost). Aggregated in SQL.
+   */
+  getWasteByProduct(startDate: Date, endDate: Date): Promise<WasteProductAggregate[]>;
+
+  /**
+   * Waste (merma) rollup by reason category over a window.
+   */
+  getWasteByCategory(startDate: Date, endDate: Date): Promise<WasteCategoryAggregate[]>;
 }
