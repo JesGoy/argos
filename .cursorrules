@@ -13,6 +13,24 @@ Next.js 16 application for inventory control management with Clean Architecture 
 - **Validation**: Zod
 - **Hashing**: bcryptjs
 
+## Esquema actual (AUTORITATIVO — leer antes que los ejemplos de más abajo)
+
+> Algunos ejemplos de este documento describen un diseño objetivo (Warehouse, Inventory, Supplier, enum `in/out/transfer`). Esa NO es la realidad del código. Esta sección manda; los ejemplos son ilustrativos del estilo, no del esquema.
+
+**Tablas reales (`src/infra/db/schema.ts`):** `User`, `Product`, `Conversation`, `Message`, `Customer`, `Sale`, `SaleItem`, `StockTransaction`. No existe `Warehouse`, `Inventory` (por bodega), `Supplier`, `Recipe`, ni `Organization`.
+
+**Stock:** NO se almacena en `Product`. El stock vigente se calcula sumando `StockTransaction.quantity` (`getCurrentStock` / `getCurrentStockBatch`). `Product` ya NO tiene columna `current_stock`. Para vistas que necesitan stock usa el tipo `ProductWithStock` (`Product & { currentStock }`).
+
+**Dinero:** entero en centavos en todo el dominio (`Product.unitCost`, `Product.sellingPrice`, `Sale.totalAmount`, `SaleItem.unitPrice`/`subtotal`). Formularios capturan unidades mayores y convierten con `toCents` (`src/config/money.ts`); las vistas usan `formatMoney`.
+
+**Enum de transacción real:** `transactionTypeEnum = ['sale', 'purchase', 'adjustment', 'return']`. (`'waste'`/merma se agrega en Fase 1 del plan.)
+
+**Regla "stock bajo":** única en `isLowStock(currentStock, reorderPoint)` (`src/core/domain/services/InventoryRules.ts`). NO comparar `min_stock <= reorder_point`.
+
+**Roadmap (NO implementado todavía):** multi-tenant (`organizationId` en todas las tablas), merma (`waste`), recetas/BOM, proveedores/compras, multi-bodega, lotes/caducidad, billing. Ver el plan de mejora. No asumas que existen.
+
+**Command services (paridad de canal):** `ProductCommandService` y `StockCommandService` ya existen y son el patrón a seguir; `SalesCommandService`/`PosCommandService` están planificados pero aún NO existen (POS llama a `ProcessSale` directo por ahora).
+
 ## Architecture Layers (Clean Architecture)
 
 ### 1. Domain Layer (`src/core/domain/`)

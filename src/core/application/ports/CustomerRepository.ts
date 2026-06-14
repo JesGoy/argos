@@ -36,9 +36,9 @@ export interface CustomerRepository {
   update(id: string, input: UpdateCustomerInput): Promise<void>;
 
   /**
-   * Update customer debt
+   * Increment customer debt by `amount`. Pass `executor` to run inside a transaction.
    */
-  updateDebt(id: string, amount: number): Promise<void>;
+  updateDebt(id: string, amount: number, executor?: unknown): Promise<void>;
 
   /**
    * Delete a customer

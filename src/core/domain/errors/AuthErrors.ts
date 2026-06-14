@@ -37,3 +37,13 @@ export class UnauthorizedError extends Error {
     this.name = 'UnauthorizedError';
   }
 }
+
+/**
+ * Domain Error: Account suspended — valid credentials but access is blocked.
+ */
+export class AccountSuspendedError extends Error {
+  constructor() {
+    super('Tu cuenta está suspendida. Contacta a un administrador.');
+    this.name = 'AccountSuspendedError';
+  }
+}

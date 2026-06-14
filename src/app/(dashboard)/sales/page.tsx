@@ -1,16 +1,34 @@
 import { requireRole } from '@/app/lib/auth';
 import { SALES_AUTHORIZED_ROLES } from '@/core/domain/constants/UserConstants';
 import { makeGetSalesReport } from '@/infra/container/sales';
+import { formatMoney } from '@/config/money';
+import { getOrgFormatting } from '@/app/lib/org';
+import { APP_ROUTE } from '@/config/routes';
+import { PAGE_SIZE, parsePage, toLimitOffset, totalPages } from '@/config/pagination';
+import { Pagination } from '@/components/Pagination';
 import { SalesList } from './SalesList';
-import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
 
-export default async function SalesPage() {
-  await requireRole([...SALES_AUTHORIZED_ROLES]);
+export default async function SalesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const session = await requireRole([...SALES_AUTHORIZED_ROLES]);
 
-  const useCase = makeGetSalesReport();
-  const { sales, stats } = await useCase.execute();
+  const page = parsePage((await searchParams).page);
+  const { limit, offset } = toLimitOffset(page);
+
+  const useCase = makeGetSalesReport(session.organizationId);
+  const [{ sales, stats, total }, { currency, timezone }] = await Promise.all([
+    useCase.execute({ limit, offset }),
+    getOrgFormatting(session.organizationId),
+  ]);
+  const pageCount = totalPages(total, PAGE_SIZE);
+
+  // Everyone who can reach this page is sales-authorized and may cancel.
+  const canCancel = SALES_AUTHORIZED_ROLES.includes(session.role);
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -23,6 +41,12 @@ export default async function SalesPage() {
               Consulta las ventas realizadas y sus estadísticas
             </p>
           </div>
+          <a
+            href="/api/export/sales"
+            className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors"
+          >
+            Exportar CSV
+          </a>
         </div>
 
         {/* Stats */}
@@ -30,7 +54,7 @@ export default async function SalesPage() {
           <div className="bg-white rounded-lg shadow p-6">
             <div className="text-sm text-gray-600 mb-1">Total Vendido Hoy</div>
             <div className="text-3xl font-bold text-gray-900">
-              ${stats.totalAmount.toLocaleString()}
+              {formatMoney(stats.totalAmount, currency)}
             </div>
           </div>
           <div className="bg-white rounded-lg shadow p-6">
@@ -40,13 +64,15 @@ export default async function SalesPage() {
           <div className="bg-white rounded-lg shadow p-6">
             <div className="text-sm text-gray-600 mb-1">Ticket Promedio</div>
             <div className="text-3xl font-bold text-gray-900">
-              ${Math.round(stats.averageTicket).toLocaleString()}
+              {formatMoney(Math.round(stats.averageTicket), currency)}
             </div>
           </div>
         </div>
 
         {/* Sales List */}
-        <SalesList sales={sales} />
+        <SalesList sales={sales} canCancel={canCancel} currency={currency} timezone={timezone} />
+
+        <Pagination currentPage={page} totalPages={pageCount} basePath={APP_ROUTE.SALES} />
       </div>
     </div>
   );

@@ -18,10 +18,21 @@ export interface MessageMetadata {
   intent?: string;
   entities?: Record<string, unknown>;
   action?: string;
+  /** All tool actions taken this turn, in order (multi-step agentic loop). */
+  actions?: string[];
   success?: boolean;
   error?: string;
   executionTime?: number;
   pendingConfirmation?: unknown;
+  /** Token usage + estimated cost telemetry for the turn. */
+  usage?: {
+    inputTokens?: number;
+    outputTokens?: number;
+    totalTokens?: number;
+    steps?: number;
+    finishReason?: string;
+    estimatedCostUsd?: number;
+  };
 }
 
 /**

@@ -1,7 +1,8 @@
 import type { HashService } from '@/core/application/ports/HashService';
 import type { SessionData, SessionService } from '@/core/application/ports/SessionService';
 import type { UserRepository } from '@/core/application/ports/UserRepository';
-import { InvalidCredentialsError } from '@/core/domain/errors/AuthErrors';
+import { AccountSuspendedError, InvalidCredentialsError } from '@/core/domain/errors/AuthErrors';
+import { USER_STATUS } from '@/core/domain/constants/UserConstants';
 
 export interface LoginUserInput {
   identifier: string; // email or username
@@ -37,8 +38,14 @@ export class LoginUser {
       throw new InvalidCredentialsError();
     }
 
+    // Credentials are valid, but a suspended account cannot start a session.
+    if (user.status === USER_STATUS.SUSPENDED) {
+      throw new AccountSuspendedError();
+    }
+
     const session: SessionData = {
       userId: user.id,
+      organizationId: user.organizationId,
       username: user.username,
       email: user.email,
       role: user.role,

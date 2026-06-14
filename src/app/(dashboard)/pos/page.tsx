@@ -1,16 +1,20 @@
 import { requireRole } from '@/app/lib/auth';
 import { SALES_AUTHORIZED_ROLES } from '@/core/domain/constants/UserConstants';
-import { makeGetProducts } from '@/infra/container/products';
+import { makeGetProductsWithStock } from '@/infra/container/products';
+import { getOrgFormatting } from '@/app/lib/org';
 import { POSInterface } from './POSInterface';
 import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
 
 export default async function POSPage() {
-  await requireRole([...SALES_AUTHORIZED_ROLES]);
+  const session = await requireRole([...SALES_AUTHORIZED_ROLES]);
 
-  const useCase = makeGetProducts();
-  const products = await useCase.execute({});
+  const useCase = makeGetProductsWithStock(session.organizationId);
+  const [products, { currency }] = await Promise.all([
+    useCase.execute({}),
+    getOrgFormatting(session.organizationId),
+  ]);
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -31,7 +35,17 @@ export default async function POSPage() {
           </Link>
         </div>
 
-        <POSInterface products={products.map(p => ({ ...p, currentStock: 0 }))} />
+        <POSInterface
+          currency={currency}
+          products={products.map((p) => ({
+            id: p.id,
+            sku: p.sku,
+            name: p.name,
+            category: p.category,
+            currentStock: p.currentStock,
+            sellingPrice: p.sellingPrice,
+          }))}
+        />
       </div>
     </div>
   );

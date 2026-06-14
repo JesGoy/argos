@@ -20,6 +20,8 @@ export interface SalesReportFilters {
   status?: SaleStatus;
   userId?: number;
   customerId?: string;
+  limit?: number;
+  offset?: number;
 }
 
 /**
@@ -36,6 +38,7 @@ export class GetSalesReport {
 
   async execute(filters?: SalesReportFilters): Promise<{
     sales: SaleWithItems[];
+    total: number;
     stats: {
       totalAmount: number;
       totalSales: number;
@@ -43,26 +46,29 @@ export class GetSalesReport {
       byPaymentMethod?: Record<string, number>;
     };
   }> {
-    // Get sales with filters
+    // Get the (possibly paginated) page of sales.
     const sales = await this.deps.sales.findAll(filters);
 
-    // Get items for each sale
-    const salesWithItems: SaleWithItems[] = await Promise.all(
-      sales.map(async (sale) => {
-        const items = await this.deps.saleItems.findBySaleId(sale.id);
-        return {
-          ...sale,
-          items: items.map((item) => ({
-            id: item.id,
-            productName: item.productName,
-            sku: item.sku,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            subtotal: item.subtotal,
-          })),
-        };
-      })
-    );
+    // Fetch all items for this page in ONE query, then group by sale (no N+1).
+    const itemsBySale = new Map<string, SaleWithItems['items']>();
+    const allItems = await this.deps.saleItems.findBySaleIds(sales.map((sale) => sale.id));
+    for (const item of allItems) {
+      const bucket = itemsBySale.get(item.saleId) ?? [];
+      bucket.push({
+        id: item.id,
+        productName: item.productName,
+        sku: item.sku,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        subtotal: item.subtotal,
+      });
+      itemsBySale.set(item.saleId, bucket);
+    }
+
+    const salesWithItems: SaleWithItems[] = sales.map((sale) => ({
+      ...sale,
+      items: itemsBySale.get(sale.id) ?? [],
+    }));
 
     // Calculate statistics
     let stats;
@@ -72,8 +78,12 @@ export class GetSalesReport {
       stats = await this.deps.sales.getTodayStats();
     }
 
+    // Total matching rows (for pagination), ignoring limit/offset.
+    const total = await this.deps.sales.count(filters);
+
     return {
       sales: salesWithItems,
+      total,
       stats,
     };
   }

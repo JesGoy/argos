@@ -1,61 +1,70 @@
 import { ProductRepositoryDrizzle } from '@/infra/repositories/ProductRepositoryDrizzle';
 import { StockTransactionRepositoryDrizzle } from '@/infra/repositories/StockTransactionRepositoryDrizzle';
+import { RecipeRepositoryDrizzle } from '@/infra/repositories/RecipeRepositoryDrizzle';
+import type { RecipeRepository } from '@/core/application/ports/RecipeRepository';
+import type { ProductRepository } from '@/core/application/ports/ProductRepository';
 import { CreateProduct } from '@/core/application/usecases/products/CreateProduct';
 import { GetProducts } from '@/core/application/usecases/products/GetProducts';
+import { GetProductsWithStock } from '@/core/application/usecases/products/GetProductsWithStock';
 import { GetProductById } from '@/core/application/usecases/products/GetProductById';
 import { UpdateProduct } from '@/core/application/usecases/products/UpdateProduct';
 import { DeleteProduct } from '@/core/application/usecases/products/DeleteProduct';
 import { ProductCommandService } from '@/core/application/usecases/products/ProductCommandService';
+import { makeEnforcePlanLimit, makeGetSubscription } from '@/infra/container/billing';
 
 /**
- * Factory: Create Product Use Case
+ * All factories are scoped to an organization: pass the session's
+ * organizationId so every repository query is tenant-isolated.
  */
-export function makeCreateProduct() {
-  const products = new ProductRepositoryDrizzle();
+
+export function makeCreateProduct(organizationId: number) {
+  const products = new ProductRepositoryDrizzle(organizationId);
   return new CreateProduct({ products });
 }
 
-/**
- * Factory: Get Products Use Case
- */
-export function makeGetProducts() {
-  const products = new ProductRepositoryDrizzle();
+export function makeGetProducts(organizationId: number) {
+  const products = new ProductRepositoryDrizzle(organizationId);
   return new GetProducts({ products });
 }
 
-/**
- * Factory: Get Product By ID Use Case
- */
-export function makeGetProductById() {
-  const products = new ProductRepositoryDrizzle();
+export function makeGetProductsWithStock(organizationId: number) {
+  const products = new ProductRepositoryDrizzle(organizationId);
+  const stockTransactions = new StockTransactionRepositoryDrizzle(organizationId);
+  return new GetProductsWithStock({ products, stockTransactions });
+}
+
+export function makeGetProductById(organizationId: number) {
+  const products = new ProductRepositoryDrizzle(organizationId);
   return new GetProductById({ products });
 }
 
-/**
- * Factory: Update Product Use Case
- */
-export function makeUpdateProduct() {
-  const products = new ProductRepositoryDrizzle();
+export function makeUpdateProduct(organizationId: number) {
+  const products = new ProductRepositoryDrizzle(organizationId);
   return new UpdateProduct({ products });
 }
 
-/**
- * Factory: Delete Product Use Case
- */
-export function makeDeleteProduct() {
-  const products = new ProductRepositoryDrizzle();
+export function makeDeleteProduct(organizationId: number) {
+  const products = new ProductRepositoryDrizzle(organizationId);
   return new DeleteProduct({ products });
 }
 
-/**
- * Factory: Product command service shared by manual and AI channels
- */
-export function makeProductCommandService() {
-  const products = new ProductRepositoryDrizzle();
-  const stockTransactions = new StockTransactionRepositoryDrizzle();
+export function makeRecipeRepository(organizationId: number): RecipeRepository {
+  return new RecipeRepositoryDrizzle(organizationId);
+}
+
+export function makeProductRepository(organizationId: number): ProductRepository {
+  return new ProductRepositoryDrizzle(organizationId);
+}
+
+export function makeProductCommandService(organizationId: number) {
+  const products = new ProductRepositoryDrizzle(organizationId);
+  const stockTransactions = new StockTransactionRepositoryDrizzle(organizationId);
 
   return new ProductCommandService({
     products,
     stockTransactions,
+    organizationId,
+    getSubscription: makeGetSubscription(),
+    enforcePlanLimit: makeEnforcePlanLimit(),
   });
 }

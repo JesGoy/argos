@@ -25,6 +25,33 @@ export const USER_ROLE = {
 } as const;
 
 /**
+ * Account access states. 'suspended' users keep their data but cannot log in.
+ */
+export const USER_STATUSES = ['active', 'suspended'] as const;
+
+export type UserStatus = (typeof USER_STATUSES)[number];
+
+export const USER_STATUS = {
+  ACTIVE: 'active' as const,
+  SUSPENDED: 'suspended' as const,
+} as const;
+
+export const USER_STATUS_LABELS: Record<UserStatus, string> = {
+  active: 'Activo',
+  suspended: 'Suspendido',
+} as const;
+
+/**
+ * Human-readable role labels (Spanish) for UI and AI context.
+ */
+export const USER_ROLE_LABELS: Record<UserRole, string> = {
+  admin: 'Administrador',
+  warehouse_manager: 'Jefe de bodega',
+  operator: 'Operador',
+  viewer: 'Visor',
+} as const;
+
+/**
  * Role permission levels (for hierarchical checks)
  */
 export const ROLE_LEVELS = {

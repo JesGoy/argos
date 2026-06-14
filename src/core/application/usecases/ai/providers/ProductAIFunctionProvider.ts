@@ -11,6 +11,7 @@ import {
   PRODUCT_AI_ACTION,
   PRODUCT_UNITS,
 } from '@/core/domain/constants/ProductConstants';
+import { PRODUCT_MANAGEMENT_ROLES } from '@/core/domain/constants/UserConstants';
 import { InvalidProductDataError } from '@/core/domain/errors/ProductErrors';
 import {
   AI_PRODUCT_MESSAGE_PATTERNS,
@@ -40,7 +41,8 @@ export class ProductAIFunctionProvider implements AIFunctionProvider {
   }
 
   getFunctions(actor: ProductCommandActor, history: Message[]): AIFunction[] {
-    return [
+    const canManage = PRODUCT_MANAGEMENT_ROLES.includes(actor.role);
+    const allFunctions: AIFunction[] = [
       {
         name: PRODUCT_AI_ACTION.CREATE,
         description:
@@ -220,6 +222,19 @@ export class ProductAIFunctionProvider implements AIFunctionProvider {
         },
       },
     ];
+
+    // Viewers (read-only role) get only the read tools; create/update/delete are
+    // gated to product managers. The command service also enforces this, but
+    // filtering here keeps the model from offering actions it can't perform.
+    if (canManage) {
+      return allFunctions;
+    }
+    const writeActions = new Set<string>([
+      PRODUCT_AI_ACTION.CREATE,
+      PRODUCT_AI_ACTION.UPDATE,
+      PRODUCT_AI_ACTION.DELETE,
+    ]);
+    return allFunctions.filter((fn) => !writeActions.has(fn.name));
   }
 
   private enrichMutationParams(

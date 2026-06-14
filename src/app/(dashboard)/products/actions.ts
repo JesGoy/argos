@@ -8,10 +8,15 @@ import {
   DuplicateSKUError,
   ProductDeletionError,
 } from '@/core/domain/errors/ProductErrors';
+import { PlanLimitExceededError } from '@/core/domain/errors/BillingErrors';
 import { requireRole } from '@/app/lib/auth';
 import { UnauthorizedError } from '@/core/domain/errors/AuthErrors';
 import { PRODUCT_COMMAND_SOURCE } from '@/core/domain/constants/ProductConstants';
 import { PRODUCT_MANAGEMENT_ROLES } from '@/core/domain/constants/UserConstants';
+import type {
+  PlanLimitType,
+  PlanType,
+} from '@/core/domain/constants/BillingConstants';
 
 /**
  * State type for product form actions
@@ -19,12 +24,20 @@ import { PRODUCT_MANAGEMENT_ROLES } from '@/core/domain/constants/UserConstants'
 export type ProductFormState = {
   success?: boolean;
   error?: string;
+  limit?: {
+    limitType: PlanLimitType;
+    current: number;
+    max: number;
+    plan: PlanType;
+  };
   fieldErrors?: {
     sku?: string[];
     name?: string[];
     description?: string[];
     category?: string[];
     unit?: string[];
+    unitCost?: string[];
+    sellingPrice?: string[];
     minStock?: string[];
     reorderPoint?: string[];
   };
@@ -49,6 +62,9 @@ export async function createProductAction(
     description: formData.get('description'),
     category: formData.get('category'),
     unit: formData.get('unit'),
+    unitCost: formData.get('unitCost'),
+    sellingPrice: formData.get('sellingPrice'),
+    isComposite: formData.get('isComposite'),
     minStock: formData.get('minStock'),
     reorderPoint: formData.get('reorderPoint'),
   };
@@ -62,7 +78,7 @@ export async function createProductAction(
   }
 
   try {
-    const productCommands = makeProductCommandService();
+    const productCommands = makeProductCommandService(session.organizationId);
     const result = await productCommands.create(
       {
         userId: session.userId,
@@ -80,6 +96,17 @@ export async function createProductAction(
     }
     if (err instanceof DuplicateSKUError) {
       return { error: err.message };
+    }
+    if (err instanceof PlanLimitExceededError) {
+      return {
+        error: err.message,
+        limit: {
+          limitType: err.limitType,
+          current: err.current,
+          max: err.max,
+          plan: err.plan,
+        },
+      };
     }
     return { error: 'Error al crear el producto' };
   }
@@ -112,6 +139,19 @@ export async function updateProductAction(
   const unit = formData.get('unit');
   if (unit) rawData.unit = unit;
 
+  const unitCost = formData.get('unitCost');
+  if (typeof unitCost === 'string' && unitCost.length > 0) {
+    rawData.unitCost = unitCost;
+  }
+
+  const sellingPrice = formData.get('sellingPrice');
+  if (typeof sellingPrice === 'string' && sellingPrice.length > 0) {
+    rawData.sellingPrice = sellingPrice;
+  }
+
+  // Checkbox: always reflect current state (null when unchecked -> false).
+  rawData.isComposite = formData.get('isComposite');
+
   const minStock = formData.get('minStock');
   if (typeof minStock === 'string' && minStock.length > 0) {
     rawData.minStock = minStock;
@@ -131,7 +171,7 @@ export async function updateProductAction(
   }
 
   try {
-    const productCommands = makeProductCommandService();
+    const productCommands = makeProductCommandService(session.organizationId);
     const result = await productCommands.updateById(
       {
         userId: session.userId,
@@ -164,7 +204,7 @@ export async function updateProductAction(
 export async function deleteProductAction(id: string): Promise<{ error?: string }> {
   try {
     const session = await requireRole([...PRODUCT_MANAGEMENT_ROLES]);
-    const productCommands = makeProductCommandService();
+    const productCommands = makeProductCommandService(session.organizationId);
     const result = await productCommands.deleteById(
       {
         userId: session.userId,

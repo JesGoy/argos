@@ -1,6 +1,6 @@
 import type { AIService } from '@/core/application/ports/AIService';
-import type { ConversationRepository } from '@/core/application/ports/ConversationRepository';
 import type { MessageRepository } from '@/core/application/ports/MessageRepository';
+import type { ConversationRepository } from '@/core/application/ports/ConversationRepository';
 import type { SaleRepository } from '@/core/application/ports/SaleRepository';
 
 import { VercelAIService } from '@/infra/ai/VercelAIService';
@@ -22,16 +22,26 @@ import { CompositeAIResponseFormatter } from '@/core/application/usecases/ai/Com
 import { ProductAIResponseFormatter } from '@/core/application/usecases/ai/formatters/ProductAIResponseFormatter';
 import { SalesAIResponseFormatter } from '@/core/application/usecases/ai/formatters/SalesAIResponseFormatter';
 import { StockAIResponseFormatter } from '@/core/application/usecases/ai/formatters/StockAIResponseFormatter';
+import { AnalyticsAIResponseFormatter } from '@/core/application/usecases/ai/formatters/AnalyticsAIResponseFormatter';
 import { ProductAIFunctionProvider } from '@/core/application/usecases/ai/providers/ProductAIFunctionProvider';
 import { SalesAIFunctionProvider } from '@/core/application/usecases/ai/providers/SalesAIFunctionProvider';
 import { StockAIFunctionProvider } from '@/core/application/usecases/ai/providers/StockAIFunctionProvider';
+import { AnalyticsAIFunctionProvider } from '@/core/application/usecases/ai/providers/AnalyticsAIFunctionProvider';
+import { makeAnalyticsService } from '@/infra/container/analytics';
+import {
+  makeEnforcePlanLimit,
+  makeGetSubscription,
+  makeRecordAiUsage,
+} from '@/infra/container/billing';
 import { ProductDeleteConfirmationHandler } from '@/core/application/usecases/ai/confirmations/ProductDeleteConfirmationHandler';
 import { StockOutConfirmationHandler } from '@/core/application/usecases/ai/confirmations/StockOutConfirmationHandler';
+import { WasteConfirmationHandler } from '@/core/application/usecases/ai/confirmations/WasteConfirmationHandler';
 import { StockCommandService } from '@/core/application/usecases/stock/StockCommandService';
 import { ProcessAICommand } from '@/core/application/usecases/ai/ProcessAICommand';
+import { ORGANIZATION_DEFAULTS } from '@/core/domain/constants/OrganizationConstants';
 
 /**
- * AI Service Singleton
+ * AI Service Singleton (no tenant state)
  */
 let aiServiceInstance: AIService | null = null;
 
@@ -43,19 +53,9 @@ export function getAIService(): AIService {
 }
 
 /**
- * Conversation Repository Singleton
- */
-let conversationRepoInstance: ConversationRepository | null = null;
-
-export function getConversationRepository(): ConversationRepository {
-  if (!conversationRepoInstance) {
-    conversationRepoInstance = new ConversationRepositoryDrizzle();
-  }
-  return conversationRepoInstance;
-}
-
-/**
- * Message Repository Singleton
+ * Message Repository Singleton.
+ * Messages are reached only through a conversation whose ownership/org is
+ * validated first, so this repository is not itself org-scoped.
  */
 let messageRepoInstance: MessageRepository | null = null;
 
@@ -67,86 +67,93 @@ export function getMessageRepository(): MessageRepository {
 }
 
 /**
- * Sale Repository Singleton
+ * Conversation Repository (org-scoped — built per request)
  */
-let saleRepoInstance: SaleRepository | null = null;
-
-export function getSaleRepository(): SaleRepository {
-  if (!saleRepoInstance) {
-    saleRepoInstance = new SaleRepositoryDrizzle();
-  }
-  return saleRepoInstance;
+export function makeConversationRepository(organizationId: number): ConversationRepository {
+  return new ConversationRepositoryDrizzle(organizationId);
 }
 
 /**
- * Use Case Factories
+ * Use Case Factories (all org-scoped)
  */
 
-export function makeCreateConversation(): CreateConversation {
+export function makeCreateConversation(organizationId: number): CreateConversation {
   return new CreateConversation({
-    conversations: getConversationRepository(),
+    conversations: makeConversationRepository(organizationId),
     messages: getMessageRepository(),
   });
 }
 
-export function makeGetConversationHistory(): GetConversationHistory {
+export function makeGetConversationHistory(organizationId: number): GetConversationHistory {
   return new GetConversationHistory({
-    conversations: getConversationRepository(),
+    conversations: makeConversationRepository(organizationId),
   });
 }
 
-export function makeGetConversationById(): GetConversationById {
+export function makeGetConversationById(organizationId: number): GetConversationById {
   return new GetConversationById({
-    conversations: getConversationRepository(),
+    conversations: makeConversationRepository(organizationId),
   });
 }
 
-export function makeGetConversationMessages(): GetConversationMessages {
+export function makeGetConversationMessages(organizationId: number): GetConversationMessages {
   return new GetConversationMessages({
-    conversations: getConversationRepository(),
+    conversations: makeConversationRepository(organizationId),
     messages: getMessageRepository(),
   });
 }
 
-export function makeDeleteConversation(): DeleteConversation {
+export function makeDeleteConversation(organizationId: number): DeleteConversation {
   return new DeleteConversation({
-    conversations: getConversationRepository(),
+    conversations: makeConversationRepository(organizationId),
     messages: getMessageRepository(),
   });
 }
 
-export function makeStockCommandService(): StockCommandService {
+export function makeStockCommandService(organizationId: number): StockCommandService {
   return new StockCommandService({
-    products: new ProductRepositoryDrizzle(),
-    stockTransactions: new StockTransactionRepositoryDrizzle(),
+    products: new ProductRepositoryDrizzle(organizationId),
+    stockTransactions: new StockTransactionRepositoryDrizzle(organizationId),
   });
 }
 
-export function makeProcessAICommand(): ProcessAICommand {
+export function makeProcessAICommand(
+  organizationId: number,
+  currency: string = ORGANIZATION_DEFAULTS.CURRENCY,
+): ProcessAICommand {
   const messages = getMessageRepository();
-  const productCommands = makeProductCommandService();
-  const stockCommands = makeStockCommandService();
+  const productCommands = makeProductCommandService(organizationId);
+  const stockCommands = makeStockCommandService(organizationId);
+  const saleRepository: SaleRepository = new SaleRepositoryDrizzle(organizationId);
+  const analytics = makeAnalyticsService(organizationId);
 
   return new ProcessAICommand({
     ai: getAIService(),
-    conversations: getConversationRepository(),
+    conversations: makeConversationRepository(organizationId),
     messages,
     functionRegistry: new AIFunctionRegistry([
       new ProductAIFunctionProvider(productCommands),
-      new SalesAIFunctionProvider(getSaleRepository()),
+      new SalesAIFunctionProvider(saleRepository),
       new StockAIFunctionProvider(stockCommands),
+      new AnalyticsAIFunctionProvider(analytics),
     ]),
     responseFormatter: new CompositeAIResponseFormatter([
       new ProductAIResponseFormatter(),
-      new SalesAIResponseFormatter(),
+      new SalesAIResponseFormatter(currency),
       new StockAIResponseFormatter(),
+      new AnalyticsAIResponseFormatter(currency),
     ]),
     confirmations: new AIConfirmationManager({
       messages,
       handlers: [
         new ProductDeleteConfirmationHandler({ messages, productCommands }),
         new StockOutConfirmationHandler({ messages, stockCommands }),
+        new WasteConfirmationHandler({ messages, stockCommands }),
       ],
     }),
+    organizationId,
+    getSubscription: makeGetSubscription(),
+    enforcePlanLimit: makeEnforcePlanLimit(),
+    recordAiUsage: makeRecordAiUsage(),
   });
 }

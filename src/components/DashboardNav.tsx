@@ -4,6 +4,7 @@ import { useMemo, useState, type ReactElement } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { SessionData } from "@/core/application/ports/SessionService";
+import type { BusinessType } from "@/core/domain/constants/OrganizationConstants";
 import { logoutAction } from "@/app/(dashboard)/logout/actions";
 
 type NavItem = {
@@ -12,10 +13,35 @@ type NavItem = {
   href: string;
   description: string;
   roles: SessionData["role"][];
+  /** If set, the item only shows for these business types (e.g. merma/recetas = food_service). */
+  businessTypes?: BusinessType[];
   icon: ReactElement;
 };
 
 const NAV_ITEMS: NavItem[] = [
+  {
+    key: "dashboard",
+    label: "Panel",
+    href: "/dashboard",
+    description: "KPIs, ventas, margen y mermas",
+    roles: ["admin", "warehouse_manager"],
+    icon: (
+      <svg
+        aria-hidden
+        className="h-5 w-5"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M3 13h8V3H3v10Zm0 8h8v-6H3v6Zm10 0h8V11h-8v10Zm0-18v6h8V3h-8Z"
+        />
+      </svg>
+    ),
+  },
   {
     key: "products",
     label: "Productos",
@@ -79,6 +105,76 @@ const NAV_ITEMS: NavItem[] = [
     ),
   },
   {
+    key: "mermas",
+    label: "Mermas",
+    href: "/mermas",
+    description: "Registrar pérdidas y desperdicio",
+    roles: ["admin", "warehouse_manager", "operator"],
+    businessTypes: ["food_service"],
+    icon: (
+      <svg
+        aria-hidden
+        className="h-5 w-5"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m2 0v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7h12ZM10 11v6M14 11v6"
+        />
+      </svg>
+    ),
+  },
+  {
+    key: "stock-in",
+    label: "Entrada stock",
+    href: "/stock-in",
+    description: "Registrar compras y recepciones",
+    roles: ["admin", "warehouse_manager", "operator"],
+    icon: (
+      <svg
+        aria-hidden
+        className="h-5 w-5"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M12 4v12m0 0 4-4m-4 4-4-4M4 20h16"
+        />
+      </svg>
+    ),
+  },
+  {
+    key: "suppliers",
+    label: "Proveedores",
+    href: "/suppliers",
+    description: "Administrar proveedores y lead time",
+    roles: ["admin", "warehouse_manager", "operator"],
+    icon: (
+      <svg
+        aria-hidden
+        className="h-5 w-5"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M3 7h13l5 5v5h-2a2 2 0 1 1-4 0H10a2 2 0 1 1-4 0H3V7Zm13 0v5h5"
+        />
+      </svg>
+    ),
+  },
+  {
     key: "ai-assistant",
     label: "Asistente IA",
     href: "/ai-assistant",
@@ -97,6 +193,76 @@ const NAV_ITEMS: NavItem[] = [
           strokeLinecap="round"
           strokeLinejoin="round"
           d="M12 3c-3 0-5.5 2.5-5.5 5.5S9 14 12 14s5.5-2.5 5.5-5.5S15 3 12 3ZM5.5 14.5 3 21l6.5-2.5M18.5 14.5 21 21l-6.5-2.5M9.5 8.5h5"
+        />
+      </svg>
+    ),
+  },
+  {
+    key: "users",
+    label: "Usuarios",
+    href: "/users",
+    description: "Administrar miembros y roles",
+    roles: ["admin"],
+    icon: (
+      <svg
+        aria-hidden
+        className="h-5 w-5"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M17 20h5v-2a4 4 0 0 0-3-3.87M9 20H4v-2a4 4 0 0 1 3-3.87m6-6.13a4 4 0 1 1-8 0 4 4 0 0 1 8 0Zm6 0a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
+        />
+      </svg>
+    ),
+  },
+  {
+    key: "settings",
+    label: "Configuración",
+    href: "/settings",
+    description: "Datos del negocio y preferencias",
+    roles: ["admin"],
+    icon: (
+      <svg
+        aria-hidden
+        className="h-5 w-5"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"
+        />
+      </svg>
+    ),
+  },
+  {
+    key: "billing",
+    label: "Facturación",
+    href: "/settings/billing",
+    description: "Plan, uso y suscripción",
+    roles: ["admin"],
+    icon: (
+      <svg
+        aria-hidden
+        className="h-5 w-5"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Zm0 4h18M7 15h4"
         />
       </svg>
     ),
@@ -240,15 +406,26 @@ function ProfileModal({
   );
 }
 
-export function DashboardNav({ session }: { session: SessionData }) {
+export function DashboardNav({
+  session,
+  businessType,
+}: {
+  session: SessionData;
+  businessType: BusinessType;
+}) {
   const pathname = usePathname();
   const [isProfileOpen, setProfileOpen] = useState(false);
   const [isMobileOpen, setMobileOpen] = useState(false);
   const [isCollapsed, setCollapsed] = useState(false);
 
   const allowedItems = useMemo(
-    () => NAV_ITEMS.filter((item) => item.roles.includes(session.role)),
-    [session.role]
+    () =>
+      NAV_ITEMS.filter(
+        (item) =>
+          item.roles.includes(session.role) &&
+          (!item.businessTypes || item.businessTypes.includes(businessType))
+      ),
+    [session.role, businessType]
   );
 
   const initials = (session.username || session.email || "?").slice(0, 1).toUpperCase();
@@ -258,7 +435,7 @@ export function DashboardNav({ session }: { session: SessionData }) {
       <aside
         className={`relative hidden h-screen ${isCollapsed ? 'w-20' : 'w-72'} shrink-0 flex-col border-r border-gray-200 bg-gradient-to-b from-slate-900 to-slate-800 px-5 py-6 text-white shadow-lg transition-all duration-200 md:flex`}
       >
-        <div className="flex flex-1 flex-col justify-between gap-6">
+        <div className="flex flex-1 flex-col justify-between gap-6 min-h-0 overflow-y-auto">
           <div className="space-y-6">
             <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'}`}>
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500 text-base font-semibold">

@@ -1,5 +1,7 @@
 import type { ProductRepository } from '@/core/application/ports/ProductRepository';
 import type { StockTransactionRepository } from '@/core/application/ports/StockTransactionRepository';
+import type { EnforcePlanLimit } from '@/core/application/usecases/billing/EnforcePlanLimit';
+import type { GetSubscription } from '@/core/application/usecases/billing/GetSubscription';
 import { CreateProduct } from '@/core/application/usecases/products/CreateProduct';
 import { DeleteProduct } from '@/core/application/usecases/products/DeleteProduct';
 import { GetProducts } from '@/core/application/usecases/products/GetProducts';
@@ -16,6 +18,7 @@ import {
 import { PRODUCT_MANAGEMENT_ROLES, type UserRole } from '@/core/domain/constants/UserConstants';
 import { UnauthorizedError } from '@/core/domain/errors/AuthErrors';
 import { ProductNotFoundError } from '@/core/domain/errors/ProductErrors';
+import { isLowStock } from '@/core/domain/services/InventoryRules';
 import { PRODUCT_REVALIDATE_PATHS } from '@/config/routes';
 
 export interface ProductCommandActor {
@@ -47,6 +50,9 @@ export class ProductCommandService {
     private readonly deps: {
       products: ProductRepository;
       stockTransactions: StockTransactionRepository;
+      organizationId: number;
+      getSubscription: GetSubscription;
+      enforcePlanLimit: EnforcePlanLimit;
     }
   ) {
     this.createProductUseCase = new CreateProduct({ products: deps.products });
@@ -60,6 +66,16 @@ export class ProductCommandService {
     input: CreateProductInput
   ): Promise<ProductCommandResult<Product>> {
     this.assertCanManage(actor.role);
+
+    const [subscription, currentCount] = await Promise.all([
+      this.deps.getSubscription.execute(this.deps.organizationId),
+      this.deps.products.count(),
+    ]);
+    this.deps.enforcePlanLimit.execute({
+      plan: subscription.plan,
+      limitType: 'products',
+      current: currentCount,
+    });
 
     const product = await this.createProductUseCase.execute(input);
 
@@ -194,7 +210,7 @@ export class ProductCommandService {
       data: {
         product,
         currentStock,
-        isLowStock: currentStock <= product.reorderPoint,
+        isLowStock: isLowStock(currentStock, product.reorderPoint),
       },
       refreshPaths: PRODUCT_REVALIDATE_PATHS,
     } satisfies ProductCommandResult<{

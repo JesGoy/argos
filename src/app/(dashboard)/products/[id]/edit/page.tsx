@@ -1,5 +1,10 @@
-import { makeGetProductById } from '@/infra/container/products';
+import {
+  makeGetProductById,
+  makeGetProducts,
+  makeRecipeRepository,
+} from '@/infra/container/products';
 import EditProductForm from './EditProductForm';
+import { RecipeEditor } from './RecipeEditor';
 import { notFound } from 'next/navigation';
 import { requireRole } from '@/app/lib/auth';
 import { PRODUCT_MANAGEMENT_ROLES } from '@/core/domain/constants/UserConstants';
@@ -11,13 +16,33 @@ interface EditProductPageProps {
 }
 
 export default async function EditProductPage({ params }: EditProductPageProps) {
-  await requireRole([...PRODUCT_MANAGEMENT_ROLES]);
+  const session = await requireRole([...PRODUCT_MANAGEMENT_ROLES]);
   const { id } = await params;
-  const useCase = makeGetProductById();
-  const product = await useCase.execute(id);
+  const product = await makeGetProductById(session.organizationId).execute(id);
 
   if (!product) {
     notFound();
+  }
+
+  let recipeSection = null;
+  if (product.isComposite) {
+    const recipes = makeRecipeRepository(session.organizationId);
+    const [components, allProducts] = await Promise.all([
+      recipes.listDetailed(product.id),
+      makeGetProducts(session.organizationId).execute(),
+    ]);
+    // Ingredients are simple (non-composite) products other than this finished good.
+    const ingredientOptions = allProducts
+      .filter((p) => p.id !== product.id && !p.isComposite)
+      .map((p) => ({ id: p.id, sku: p.sku, name: p.name }));
+
+    recipeSection = (
+      <RecipeEditor
+        finishedProductId={product.id}
+        components={components}
+        ingredientOptions={ingredientOptions}
+      />
+    );
   }
 
   return (
@@ -30,6 +55,7 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
 
         <div className="bg-white rounded-lg shadow p-6">
           <EditProductForm product={product} />
+          {recipeSection}
         </div>
       </div>
     </div>

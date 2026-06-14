@@ -10,8 +10,14 @@ export interface StockTransaction {
   type: TransactionType;
   quantity: number;
   reason: string;
+  /** Categorized merma reason (only set when type === 'waste'). */
+  wasteReason?: string;
   userId: number;
   saleId?: string;
+  /** Proveedor (only set when type === 'purchase'). */
+  supplierId?: string;
+  /** Per-unit acquisition cost in cents at time of purchase (purchases only). */
+  perUnitCost?: number;
   referenceNumber?: string;
   createdAt: Date;
 }

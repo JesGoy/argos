@@ -36,8 +36,14 @@ export class JWTSessionService implements SessionService {
       throw new Error('Invalid role in token');
     }
 
+    const organizationId = Number(payload.organizationId);
+    if (!Number.isInteger(organizationId) || organizationId <= 0) {
+      throw new Error('Invalid organizationId in token');
+    }
+
     return {
       userId: String(payload.userId),
+      organizationId,
       username: String(payload.username),
       email: String(payload.email),
       role: payload.role,

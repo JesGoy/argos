@@ -1,16 +1,15 @@
-import { eq, or, ilike } from 'drizzle-orm';
+import { eq, and, or, ilike, sql, type SQL } from 'drizzle-orm';
 import type { Customer, CreateCustomerInput, UpdateCustomerInput } from '@/core/domain/entities/Customer';
 import type { CustomerRepository } from '@/core/application/ports/CustomerRepository';
-import { getDb } from '@/infra/db/client';
+import { getDb, type DbExecutor } from '@/infra/db/client';
 import { customerTable, type CustomerRow } from '@/infra/db/schema';
 
 /**
- * Drizzle implementation of CustomerRepository
+ * Drizzle implementation of CustomerRepository, scoped to one organization.
  */
 export class CustomerRepositoryDrizzle implements CustomerRepository {
-  /**
-   * Maps database row to domain entity
-   */
+  constructor(private readonly organizationId: number) {}
+
   private mapToEntity(row: CustomerRow): Customer {
     return {
       id: String(row.id),
@@ -25,12 +24,16 @@ export class CustomerRepositoryDrizzle implements CustomerRepository {
     };
   }
 
+  private orgScope(): SQL {
+    return eq(customerTable.organizationId, this.organizationId);
+  }
+
   async findById(id: string): Promise<Customer | null> {
     const db = getDb();
     const rows = await db
       .select()
       .from(customerTable)
-      .where(eq(customerTable.id, parseInt(id, 10)))
+      .where(and(eq(customerTable.id, parseInt(id, 10)), this.orgScope()))
       .limit(1);
 
     const row = rows[0];
@@ -43,10 +46,13 @@ export class CustomerRepositoryDrizzle implements CustomerRepository {
       .select()
       .from(customerTable)
       .where(
-        or(
-          ilike(customerTable.name, `%${searchTerm}%`),
-          ilike(customerTable.phone, `%${searchTerm}%`),
-          ilike(customerTable.email, `%${searchTerm}%`)
+        and(
+          this.orgScope(),
+          or(
+            ilike(customerTable.name, `%${searchTerm}%`),
+            ilike(customerTable.phone, `%${searchTerm}%`),
+            ilike(customerTable.email, `%${searchTerm}%`)
+          )
         )
       );
 
@@ -55,7 +61,7 @@ export class CustomerRepositoryDrizzle implements CustomerRepository {
 
   async findAll(): Promise<Customer[]> {
     const db = getDb();
-    const rows = await db.select().from(customerTable);
+    const rows = await db.select().from(customerTable).where(this.orgScope());
 
     return rows.map((row) => this.mapToEntity(row));
   }
@@ -65,7 +71,7 @@ export class CustomerRepositoryDrizzle implements CustomerRepository {
     const rows = await db
       .select()
       .from(customerTable)
-      .where(eq(customerTable.currentDebt, 0));
+      .where(and(this.orgScope(), sql`${customerTable.currentDebt} > 0`));
 
     return rows.map((row) => this.mapToEntity(row));
   }
@@ -75,6 +81,7 @@ export class CustomerRepositoryDrizzle implements CustomerRepository {
     const [row] = await db
       .insert(customerTable)
       .values({
+        organizationId: this.organizationId,
         name: input.name,
         phone: input.phone,
         email: input.email,
@@ -96,24 +103,25 @@ export class CustomerRepositoryDrizzle implements CustomerRepository {
         ...input,
         updatedAt: new Date(),
       })
-      .where(eq(customerTable.id, parseInt(id, 10)));
+      .where(and(eq(customerTable.id, parseInt(id, 10)), this.orgScope()));
   }
 
-  async updateDebt(id: string, amount: number): Promise<void> {
-    const db = getDb();
+  async updateDebt(id: string, amount: number, executor?: unknown): Promise<void> {
+    const db = (executor as DbExecutor) ?? getDb();
+    // Increment existing debt rather than overwriting it.
     await db
       .update(customerTable)
       .set({
-        currentDebt: amount,
+        currentDebt: sql`${customerTable.currentDebt} + ${amount}`,
         updatedAt: new Date(),
       })
-      .where(eq(customerTable.id, parseInt(id, 10)));
+      .where(and(eq(customerTable.id, parseInt(id, 10)), this.orgScope()));
   }
 
   async delete(id: string): Promise<void> {
     const db = getDb();
     await db
       .delete(customerTable)
-      .where(eq(customerTable.id, parseInt(id, 10)));
+      .where(and(eq(customerTable.id, parseInt(id, 10)), this.orgScope()));
   }
 }

@@ -35,5 +35,11 @@ export const CONVERSATION_CONFIRMATION = {
   METADATA_KEY: 'pendingConfirmation',
   AFFIRMATIVE_RESPONSES: ['si', 'sí', 'confirmar', 'confirmo', 'ok', 'okay', 'yes'] as const,
   NEGATIVE_RESPONSES: ['no', 'cancelar', 'cancela', 'cancelado'] as const,
+  /**
+   * A pending destructive confirmation is only honored if the user replies
+   * within this window; an affirmative reply after it is ignored so a stale
+   * "sí" cannot trigger an old delete/stock-out (anti-replay).
+   */
+  EXPIRY_MS: 5 * 60 * 1000,
 } as const;
 

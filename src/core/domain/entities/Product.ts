@@ -11,12 +11,24 @@ export interface Product {
   description?: string;
   category: string;
   unit: ProductUnit;
-  currentStock: number;
+  /** Unit acquisition cost, in integer cents. */
+  unitCost: number;
+  /** Unit selling price, in integer cents. */
+  sellingPrice: number;
+  /** Finished good assembled from ingredients; selling it depletes its recipe components. */
+  isComposite: boolean;
   minStock: number;
   reorderPoint: number;
   createdAt: Date;
   updatedAt: Date;
 }
+
+/**
+ * Product enriched with its current stock level, computed from the sum of its
+ * StockTransaction rows. Stock is NOT a stored Product attribute — use this
+ * type wherever a view needs the live quantity on hand.
+ */
+export type ProductWithStock = Product & { currentStock: number };
 
 /**
  * Input type for creating a new product
@@ -27,6 +39,9 @@ export interface CreateProductInput {
   description?: string;
   category: string;
   unit: ProductUnit;
+  unitCost: number;
+  sellingPrice: number;
+  isComposite: boolean;
   minStock: number;
   reorderPoint: number;
 }
@@ -40,6 +55,9 @@ export interface UpdateProductInput {
   description?: string;
   category?: string;
   unit?: ProductUnit;
+  unitCost?: number;
+  sellingPrice?: number;
+  isComposite?: boolean;
   minStock?: number;
   reorderPoint?: number;
 }

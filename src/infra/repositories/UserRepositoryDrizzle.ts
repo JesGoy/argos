@@ -1,9 +1,10 @@
-import { eq } from 'drizzle-orm';
+import { eq, asc } from 'drizzle-orm';
 import type {
   CreateUserInput,
   UpdateUserInput,
   User,
 } from '@/core/domain/entities/User';
+import type { UserStatus } from '@/core/domain/constants/UserConstants';
 import type { UserRepository } from '@/core/application/ports/UserRepository';
 import { getDb } from '@/infra/db/client';
 import { userTable, type UserRow } from '@/infra/db/schema';
@@ -15,10 +16,12 @@ export class UserRepositoryDrizzle implements UserRepository {
   private mapToEntity(row: UserRow): User {
     return {
       id: String(row.id),
+      organizationId: row.organizationId,
       username: row.username,
       email: row.email,
       passwordHash: row.passwordHash,
       role: row.role,
+      status: row.status as UserStatus,
       fullName: row.fullName ?? undefined,
       createdAt: row.createdAt,
     };
@@ -52,11 +55,22 @@ export class UserRepositoryDrizzle implements UserRepository {
     return row ? this.mapToEntity(row) : undefined;
   }
 
+  async findByOrganization(organizationId: number): Promise<User[]> {
+    const db = getDb();
+    const rows = await db
+      .select()
+      .from(userTable)
+      .where(eq(userTable.organizationId, organizationId))
+      .orderBy(asc(userTable.username));
+    return rows.map((row) => this.mapToEntity(row));
+  }
+
   async create(input: CreateUserInput): Promise<User> {
     const db = getDb();
     const [row] = await db
       .insert(userTable)
       .values({
+        organizationId: input.organizationId,
         username: input.username,
         email: input.email,
         passwordHash: input.passwordHash,

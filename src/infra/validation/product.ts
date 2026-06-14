@@ -1,5 +1,14 @@
 import { z } from 'zod';
 import { PRODUCT_DEFAULTS, PRODUCT_UNITS } from '@/core/domain/constants/ProductConstants';
+import { toCents } from '@/config/money';
+
+/**
+ * Money input collected in major units (e.g. 15.50) and stored as integer cents.
+ */
+const moneyInput = z.coerce
+  .number()
+  .min(0, 'El monto no puede ser negativo')
+  .transform(toCents);
 
 /**
  * Unit enum for validation
@@ -28,6 +37,9 @@ export function normalizeCreateProductInput(rawData: Record<string, unknown>) {
     description: normalizeOptionalText(rawData.description),
     category: normalizeRequiredText(rawData.category),
     unit: rawData.unit ?? PRODUCT_UNITS[0],
+    unitCost: rawData.unitCost ?? 0,
+    sellingPrice: rawData.sellingPrice ?? 0,
+    isComposite: rawData.isComposite === 'on' || rawData.isComposite === true,
     minStock: rawData.minStock ?? PRODUCT_DEFAULTS.MIN_STOCK,
     reorderPoint: rawData.reorderPoint ?? PRODUCT_DEFAULTS.REORDER_POINT,
   };
@@ -50,6 +62,15 @@ export function normalizeUpdateProductInput(rawData: Record<string, unknown>) {
   }
   if (rawData.unit !== undefined) {
     normalizedData.unit = rawData.unit;
+  }
+  if (rawData.unitCost !== undefined) {
+    normalizedData.unitCost = rawData.unitCost;
+  }
+  if (rawData.sellingPrice !== undefined) {
+    normalizedData.sellingPrice = rawData.sellingPrice;
+  }
+  if (rawData.isComposite !== undefined) {
+    normalizedData.isComposite = rawData.isComposite === 'on' || rawData.isComposite === true;
   }
   if (rawData.minStock !== undefined) {
     normalizedData.minStock = rawData.minStock;
@@ -91,6 +112,9 @@ export const createProductSchema = z.object({
     .min(1, 'Categoría es requerida')
     .max(100, 'Categoría no puede exceder 100 caracteres'),
   unit: unitSchema,
+  unitCost: moneyInput.default(0),
+  sellingPrice: moneyInput.default(0),
+  isComposite: z.boolean().default(false),
   minStock: z
     .coerce.number()
     .int('Stock mínimo debe ser un número entero')
@@ -128,6 +152,9 @@ export const updateProductSchema = z.object({
     .max(100, 'Categoría no puede exceder 100 caracteres')
     .optional(),
   unit: unitSchema.optional(),
+  unitCost: moneyInput.optional(),
+  sellingPrice: moneyInput.optional(),
+  isComposite: z.boolean().optional(),
   minStock: z
     .coerce.number()
     .int('Stock mínimo debe ser un número entero')

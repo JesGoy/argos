@@ -1,5 +1,6 @@
 import type { Sale, CreateSaleInput, UpdateSaleInput } from '@/core/domain/entities/Sale';
 import type { SaleStatus } from '@/core/domain/constants/SaleConstants';
+import type { DailySalesPoint } from '@/core/domain/entities/Analytics';
 
 /**
  * Sale Repository Port
@@ -17,8 +18,8 @@ export interface SaleRepository {
   findBySaleNumber(saleNumber: string): Promise<Sale | null>;
 
   /**
-   * Find all sales with optional filters
-   * @param filters Optional filters (date range, status, userId, customerId)
+   * Find all sales with optional filters and pagination
+   * @param filters Optional filters (date range, status, userId, customerId) and limit/offset
    */
   findAll(filters?: {
     startDate?: Date;
@@ -26,7 +27,20 @@ export interface SaleRepository {
     status?: SaleStatus;
     userId?: number;
     customerId?: string;
+    limit?: number;
+    offset?: number;
   }): Promise<Sale[]>;
+
+  /**
+   * Count sales matching the given filters (ignores pagination).
+   */
+  count(filters?: {
+    startDate?: Date;
+    endDate?: Date;
+    status?: SaleStatus;
+    userId?: number;
+    customerId?: string;
+  }): Promise<number>;
 
   /**
    * Get today's sales statistics
@@ -48,9 +62,9 @@ export interface SaleRepository {
   }>;
 
   /**
-   * Create a new sale
+   * Create a new sale. Pass `executor` to run inside a transaction.
    */
-  create(input: CreateSaleInput): Promise<Sale>;
+  create(input: CreateSaleInput, executor?: unknown): Promise<Sale>;
 
   /**
    * Update an existing sale
@@ -58,12 +72,18 @@ export interface SaleRepository {
   update(id: string, input: UpdateSaleInput): Promise<void>;
 
   /**
-   * Cancel a sale
+   * Cancel a sale. Pass `executor` to run inside a transaction.
    */
-  cancel(id: string): Promise<void>;
+  cancel(id: string, executor?: unknown): Promise<void>;
 
   /**
    * Generate next sale number
    */
   generateSaleNumber(): Promise<string>;
+
+  /**
+   * Daily sales series over a window (completed sales only), ordered by day.
+   * Aggregated in SQL with date_trunc.
+   */
+  getDailySalesTrend(startDate: Date, endDate: Date): Promise<DailySalesPoint[]>;
 }

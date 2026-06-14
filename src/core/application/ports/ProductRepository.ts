@@ -17,9 +17,29 @@ export interface ProductRepository {
 
   /**
    * Find all products
-   * @param filters Optional filters (category, search term)
+   * @param filters Optional filters (category, search term) and pagination (limit/offset)
    */
-  findAll(filters?: { category?: string; search?: string }): Promise<Product[]>;
+  findAll(filters?: {
+    category?: string;
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<Product[]>;
+
+  /**
+   * Count products matching the given filters (ignores pagination).
+   */
+  count(filters?: { category?: string; search?: string }): Promise<number>;
+
+  /**
+   * Count products currently at or below their reorder point.
+   */
+  countLowStock(): Promise<number>;
+
+  /**
+   * Count distinct product categories in the organization.
+   */
+  countCategories(): Promise<number>;
 
   /**
    * Find products with low stock (below reorder point)
