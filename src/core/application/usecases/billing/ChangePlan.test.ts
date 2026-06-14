@@ -1,10 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { ChangePlan } from './ChangePlan';
 import { GetSubscription } from './GetSubscription';
-import {
-  PlanLimitExceededError,
-  SubscriptionNotFoundError,
-} from '@/core/domain/errors/BillingErrors';
+import { EnsureSubscription } from './EnsureSubscription';
+import { PlanLimitExceededError } from '@/core/domain/errors/BillingErrors';
 import { UnauthorizedError } from '@/core/domain/errors/AuthErrors';
 import { USER_ROLE } from '@/core/domain/constants/UserConstants';
 import type { SessionData } from '@/core/application/ports/SessionService';
@@ -82,7 +80,7 @@ function makeDeps(opts: {
     exists: vi.fn(),
   };
 
-  const getSubscription = new GetSubscription(subs);
+  const getSubscription = new GetSubscription(subs, new EnsureSubscription(subs));
   const uc = new ChangePlan(subs, getSubscription, users, products);
   return { uc, subs, users, products };
 }
@@ -164,11 +162,29 @@ describe('ChangePlan', () => {
     expect(subs.update).toHaveBeenCalledWith(42, { plan: 'pro' });
   });
 
-  it('propagates SubscriptionNotFoundError from GetSubscription', async () => {
+  it('self-heals a missing subscription by creating Free, then applies the requested change', async () => {
+    let stored: Subscription | null = null;
     const subs: SubscriptionRepository = {
-      findByOrganizationId: vi.fn().mockResolvedValue(null),
-      create: vi.fn(),
-      update: vi.fn(),
+      findByOrganizationId: vi.fn().mockImplementation(async () => stored),
+      create: vi.fn().mockImplementation(async (input) => {
+        stored = {
+          id: 1,
+          organizationId: input.organizationId,
+          plan: input.plan,
+          status: input.status,
+          currentPeriodStart: input.currentPeriodStart,
+          currentPeriodEnd: input.currentPeriodEnd,
+          aiCallsUsedThisPeriod: 0,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+        return stored;
+      }),
+      update: vi.fn().mockImplementation(async (_orgId, patch) => {
+        if (!stored) throw new Error('no sub');
+        stored = { ...stored, ...patch, updatedAt: new Date() };
+        return stored;
+      }),
       incrementAiCalls: vi.fn(),
     };
     const users = {
@@ -183,10 +199,17 @@ describe('ChangePlan', () => {
       count: vi.fn().mockResolvedValue(0),
     } as unknown as ProductRepository;
 
-    const uc = new ChangePlan(subs, new GetSubscription(subs), users, products);
+    const uc = new ChangePlan(
+      subs,
+      new GetSubscription(subs, new EnsureSubscription(subs)),
+      users,
+      products,
+    );
 
-    await expect(
-      uc.execute({ session: makeSession(USER_ROLE.ADMIN), targetPlan: 'pro' }),
-    ).rejects.toBeInstanceOf(SubscriptionNotFoundError);
+    const out = await uc.execute({ session: makeSession(USER_ROLE.ADMIN), targetPlan: 'pro' });
+
+    expect(subs.create).toHaveBeenCalledTimes(1);
+    expect(subs.update).toHaveBeenCalledWith(42, { plan: 'pro' });
+    expect(out.plan).toBe('pro');
   });
 });

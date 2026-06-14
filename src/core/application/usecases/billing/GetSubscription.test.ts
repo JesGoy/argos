@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { GetSubscription } from './GetSubscription';
-import { SubscriptionNotFoundError } from '@/core/domain/errors/BillingErrors';
+import { EnsureSubscription } from './EnsureSubscription';
 import type { SubscriptionRepository } from '@/core/application/ports/SubscriptionRepository';
 import type { Subscription } from '@/core/domain/entities/Subscription';
 
@@ -8,7 +8,20 @@ function makeRepo(initial: Subscription | null) {
   let current = initial;
   const repo: SubscriptionRepository = {
     findByOrganizationId: vi.fn().mockImplementation(async () => current),
-    create: vi.fn(),
+    create: vi.fn().mockImplementation(async (input) => {
+      current = {
+        id: 1,
+        organizationId: input.organizationId,
+        plan: input.plan,
+        status: input.status,
+        currentPeriodStart: input.currentPeriodStart,
+        currentPeriodEnd: input.currentPeriodEnd,
+        aiCallsUsedThisPeriod: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      return current;
+    }),
     update: vi.fn().mockImplementation(async (_orgId, patch) => {
       if (!current) throw new Error('no sub');
       current = { ...current, ...patch, updatedAt: new Date() };
@@ -17,6 +30,10 @@ function makeRepo(initial: Subscription | null) {
     incrementAiCalls: vi.fn(),
   };
   return repo;
+}
+
+function makeUseCase(repo: SubscriptionRepository): GetSubscription {
+  return new GetSubscription(repo, new EnsureSubscription(repo));
 }
 
 function makeSub(overrides: Partial<Subscription> = {}): Subscription {
@@ -35,15 +52,23 @@ function makeSub(overrides: Partial<Subscription> = {}): Subscription {
 }
 
 describe('GetSubscription', () => {
-  it('throws SubscriptionNotFoundError when no row exists', async () => {
-    const uc = new GetSubscription(makeRepo(null));
-    await expect(uc.execute(99)).rejects.toBeInstanceOf(SubscriptionNotFoundError);
+  it('creates a Free subscription on first read when none exists (self-heals legacy orgs)', async () => {
+    const repo = makeRepo(null);
+    const uc = makeUseCase(repo);
+
+    const out = await uc.execute(99, new Date('2026-06-15T10:00:00.000Z'));
+
+    expect(out.plan).toBe('free');
+    expect(out.status).toBe('active');
+    expect(out.organizationId).toBe(99);
+    expect(out.aiCallsUsedThisPeriod).toBe(0);
+    expect(repo.create).toHaveBeenCalledTimes(1);
   });
 
   it('returns the subscription unchanged when the period is still active', async () => {
     const sub = makeSub();
     const repo = makeRepo(sub);
-    const uc = new GetSubscription(repo);
+    const uc = makeUseCase(repo);
 
     const out = await uc.execute(42, new Date('2026-06-15T10:00:00.000Z'));
 
@@ -54,7 +79,7 @@ describe('GetSubscription', () => {
   it('rolls the period and resets the counter when now is past currentPeriodEnd', async () => {
     const sub = makeSub();
     const repo = makeRepo(sub);
-    const uc = new GetSubscription(repo);
+    const uc = makeUseCase(repo);
 
     const now = new Date('2026-07-05T12:00:00.000Z');
     const out = await uc.execute(42, now);
@@ -68,7 +93,7 @@ describe('GetSubscription', () => {
   it('is idempotent within the same period (second call does not roll again)', async () => {
     const sub = makeSub();
     const repo = makeRepo(sub);
-    const uc = new GetSubscription(repo);
+    const uc = makeUseCase(repo);
 
     const now = new Date('2026-07-05T12:00:00.000Z');
     await uc.execute(42, now);

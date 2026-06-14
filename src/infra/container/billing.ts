@@ -27,7 +27,7 @@ export function makeEnsureSubscription(): EnsureSubscription {
 }
 
 export function makeGetSubscription(): GetSubscription {
-  return new GetSubscription(subscriptions());
+  return new GetSubscription(subscriptions(), makeEnsureSubscription());
 }
 
 export function makeEnforcePlanLimit(): EnforcePlanLimit {
