@@ -8,6 +8,7 @@ import { makeSalesCommandService, makeAdjustStock } from '@/infra/container/sale
 import { SalesCommandService } from '@/core/application/usecases/sales/SalesCommandService';
 import { createSaleSchema, adjustStockSchema } from '@/infra/validation/sale';
 import type { AdjustStockInput } from '@/core/application/usecases/sales/AdjustStock';
+import type { DteStatus } from '@/core/domain/constants/DteConstants';
 
 export interface FormState {
   success?: boolean;
@@ -20,6 +21,12 @@ export interface FormState {
     transactionId?: string;
     productId?: string;
     quantity?: number;
+    /** `undefined` when the org hasn't enabled DTE — nothing to show. */
+    dte?: {
+      status: DteStatus;
+      folio?: number;
+      pdfBase64?: string;
+    };
   };
 }
 
@@ -68,6 +75,9 @@ export async function processSaleAction(
         saleId: data.sale.id,
         saleNumber: data.sale.saleNumber,
         totalAmount: data.sale.totalAmount,
+        dte: data.dte
+          ? { status: data.dte.status, folio: data.dte.folio, pdfBase64: data.dte.pdfBase64 }
+          : undefined,
       },
     };
   } catch (err) {

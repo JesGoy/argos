@@ -12,6 +12,7 @@ import { GetProductStock } from '@/core/application/usecases/sales/GetProductSto
 import { GetSaleById } from '@/core/application/usecases/sales/GetSaleById';
 import { CancelSale } from '@/core/application/usecases/sales/CancelSale';
 import { SalesCommandService } from '@/core/application/usecases/sales/SalesCommandService';
+import { makeIssueDteForSale, makeIssueCreditNoteForSale, makeDteDocumentRepository } from '@/infra/container/dte';
 
 /**
  * All factories are scoped to an organization: pass the session's
@@ -40,7 +41,11 @@ export function makeGetSalesReport(organizationId: number) {
   const sales = new SaleRepositoryDrizzle(organizationId);
   const saleItems = new SaleItemRepositoryDrizzle(organizationId);
 
-  return new GetSalesReport({ sales, saleItems });
+  return new GetSalesReport({
+    sales,
+    saleItems,
+    dteDocuments: makeDteDocumentRepository(organizationId),
+  });
 }
 
 export function makeAdjustStock(organizationId: number) {
@@ -84,5 +89,7 @@ export function makeSalesCommandService(organizationId: number): SalesCommandSer
   return new SalesCommandService({
     processSale: makeProcessSale(organizationId),
     cancelSale: makeCancelSale(organizationId),
+    issueDteForSale: makeIssueDteForSale(organizationId),
+    issueCreditNoteForSale: makeIssueCreditNoteForSale(organizationId),
   });
 }

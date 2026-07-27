@@ -1,7 +1,10 @@
 import type { Sale } from '@/core/domain/entities/Sale';
 import type { SaleRepository } from '@/core/application/ports/SaleRepository';
 import type { SaleItemRepository } from '@/core/application/ports/SaleItemRepository';
+import type { DteDocumentRepository } from '@/core/application/ports/DteDocumentRepository';
 import type { SaleStatus } from '@/core/domain/constants/SaleConstants';
+import type { DteStatus } from '@/core/domain/constants/DteConstants';
+import { DTE_TYPE } from '@/core/domain/constants/DteConstants';
 
 export interface SaleWithItems extends Sale {
   items: Array<{
@@ -12,6 +15,8 @@ export interface SaleWithItems extends Sale {
     unitPrice: number;
     subtotal: number;
   }>;
+  /** Boleta status for this sale, or `null` if the org doesn't use DTE. */
+  dte: { id: string; status: DteStatus; folio?: number } | null;
 }
 
 export interface SalesReportFilters {
@@ -33,6 +38,7 @@ export class GetSalesReport {
     private readonly deps: {
       sales: SaleRepository;
       saleItems: SaleItemRepository;
+      dteDocuments: DteDocumentRepository;
     }
   ) {}
 
@@ -65,9 +71,21 @@ export class GetSalesReport {
       itemsBySale.set(item.saleId, bucket);
     }
 
+    // Same batching approach as items above: one query for the whole page's
+    // boleta summaries, then a per-sale lookup (no N+1).
+    const dteBySale = new Map<string, SaleWithItems['dte']>();
+    const dteSummaries = await this.deps.dteDocuments.findSummariesBySaleIds(
+      sales.map((sale) => sale.id),
+      DTE_TYPE.BOLETA_AFECTA
+    );
+    for (const summary of dteSummaries) {
+      dteBySale.set(summary.saleId, { id: summary.id, status: summary.status, folio: summary.folio });
+    }
+
     const salesWithItems: SaleWithItems[] = sales.map((sale) => ({
       ...sale,
       items: itemsBySale.get(sale.id) ?? [],
+      dte: dteBySale.get(sale.id) ?? null,
     }));
 
     // Calculate statistics

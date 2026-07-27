@@ -11,6 +11,7 @@ export const APP_ROUTE = {
   STOCK_IN: '/stock-in',
   SETTINGS: '/settings',
   BILLING: '/settings/billing',
+  DTE: '/settings/dte',
   USERS: '/users',
   ONBOARDING: '/onboarding',
   TERMS: '/legal/terms',

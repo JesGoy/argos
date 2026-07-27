@@ -3,10 +3,11 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { PAYMENT_METHOD_LABELS, SALE_STATUS, SALE_STATUS_LABELS, SALE_STATUS_COLORS } from '@/core/domain/constants/SaleConstants';
+import { DTE_STATUS, DTE_STATUS_LABELS, DTE_STATUS_COLORS } from '@/core/domain/constants/DteConstants';
 import type { SaleWithItems } from '@/core/application/usecases/sales/GetSalesReport';
 import { formatMoney } from '@/config/money';
 import { formatDate, formatTime } from '@/config/datetime';
-import { cancelSaleAction } from './actions';
+import { cancelSaleAction, retryDteAction } from './actions';
 
 interface SalesListProps {
   sales: SaleWithItems[];
@@ -53,6 +54,69 @@ function CancelSaleButton({ saleId, saleNumber }: { saleId: string; saleNumber: 
   );
 }
 
+function DteCell({
+  saleId,
+  dte,
+  canManage,
+}: {
+  saleId: string;
+  dte: SaleWithItems['dte'];
+  canManage: boolean;
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  if (!dte) {
+    return <span className="text-xs text-gray-400">—</span>;
+  }
+
+  const colors = DTE_STATUS_COLORS[dte.status];
+  const isRetryable =
+    dte.status === DTE_STATUS.PENDING || dte.status === DTE_STATUS.FAILED || dte.status === DTE_STATUS.SENT;
+
+  const handleRetry = () => {
+    startTransition(async () => {
+      setError(null);
+      const result = await retryDteAction(saleId);
+      if (result.error) {
+        setError(result.error);
+      } else {
+        router.refresh();
+      }
+    });
+  };
+
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}>
+        {DTE_STATUS_LABELS[dte.status]}
+      </span>
+      {dte.status === DTE_STATUS.ACCEPTED && dte.folio && (
+        <a
+          href={`/api/dte/${dte.id}/pdf`}
+          target="_blank"
+          rel="noreferrer"
+          className="text-xs font-medium text-blue-600 hover:text-blue-800"
+        >
+          Ver boleta (folio {dte.folio})
+        </a>
+      )}
+      {canManage && isRetryable && (
+        <button
+          type="button"
+          onClick={handleRetry}
+          disabled={isPending}
+          className="text-xs font-medium text-blue-600 hover:text-blue-800 disabled:opacity-50"
+        >
+          {isPending ? 'Reintentando…' : 'Reintentar'}
+        </button>
+      )}
+      {error && <span className="text-xs text-red-500">{error}</span>}
+    </div>
+  );
+}
+
 export function SalesList({ sales, canCancel = false, currency, timezone }: SalesListProps) {
   if (sales.length === 0) {
     return (
@@ -84,6 +148,9 @@ export function SalesList({ sales, canCancel = false, currency, timezone }: Sale
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               Estado
+            </th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Boleta
             </th>
             {canCancel && (
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -136,6 +203,9 @@ export function SalesList({ sales, canCancel = false, currency, timezone }: Sale
                     {SALE_STATUS_LABELS.cancelled}
                   </span>
                 )}
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm">
+                <DteCell saleId={sale.id} dte={sale.dte} canManage={canCancel} />
               </td>
               {canCancel && (
                 <td className="px-6 py-4 whitespace-nowrap text-sm">

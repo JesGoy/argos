@@ -3,8 +3,69 @@
 import { useState, useEffect, useRef, useActionState, startTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { PaymentMethod, PAYMENT_METHOD } from '@/core/domain/constants/SaleConstants';
+import { DTE_STATUS, DTE_STATUS_LABELS, DTE_STATUS_COLORS } from '@/core/domain/constants/DteConstants';
 import { formatMoney } from '@/config/money';
 import { processSaleAction, type FormState } from './actions';
+
+function SaleConfirmationModal({
+  result,
+  currency,
+  onClose,
+}: {
+  result: NonNullable<FormState['result']>;
+  currency: string;
+  onClose: () => void;
+}) {
+  const dte = result.dte;
+  const statusColor = dte ? DTE_STATUS_COLORS[dte.status] : null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
+      <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl p-6 space-y-4">
+        <div>
+          <p className="text-sm text-gray-500">Venta procesada</p>
+          <h2 className="text-2xl font-bold text-gray-900">{result.saleNumber}</h2>
+          <p className="text-lg font-semibold text-gray-700 mt-1">
+            {formatMoney(result.totalAmount ?? 0, currency)}
+          </p>
+        </div>
+
+        {dte && statusColor && (
+          <div className={`rounded-lg border border-gray-200 p-4 ${statusColor.bg}`}>
+            <p className={`text-sm font-medium ${statusColor.text}`}>{DTE_STATUS_LABELS[dte.status]}</p>
+            {dte.status === DTE_STATUS.ACCEPTED && dte.folio && (
+              <p className="text-xs text-gray-600 mt-1">Folio {dte.folio}</p>
+            )}
+            {dte.status === DTE_STATUS.ACCEPTED && dte.pdfBase64 ? (
+              <a
+                href={`data:application/pdf;base64,${dte.pdfBase64}`}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-2 inline-block text-sm font-medium text-blue-700 hover:text-blue-900 underline"
+              >
+                Ver / imprimir boleta
+              </a>
+            ) : (
+              dte.status !== DTE_STATUS.ACCEPTED && (
+                <p className="text-xs text-gray-600 mt-1">
+                  Se reintentará el envío al SII automáticamente.
+                </p>
+              )
+            )}
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={onClose}
+          className="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium py-2 rounded-lg transition-colors"
+        >
+          Cerrar
+        </button>
+      </div>
+    </div>
+  );
+}
 
 interface CartItem {
   sku: string;
@@ -39,6 +100,7 @@ export function POSInterface({ products, currency }: POSInterfaceProps) {
   const [notes, setNotes] = useState('');
   const [state, formAction, isPending] = useActionState(processSaleAction, initialState);
   const lastHandledResultRef = useRef<unknown>(null);
+  const [confirmedSale, setConfirmedSale] = useState<FormState['result'] | null>(null);
 
   // Resetting cart/search/notes in response to a server-action result is the
   // canonical useActionState pattern; the ref guards against re-firing for the
@@ -50,11 +112,11 @@ export function POSInterface({ products, currency }: POSInterfaceProps) {
       setCart([]);
       setSearchTerm('');
       setNotes('');
+      setConfirmedSale(state.result);
       /* eslint-enable react-hooks/set-state-in-effect */
-      alert(`✅ Venta procesada exitosamente!\nNúmero: ${state.result?.saleNumber}\nTotal: ${formatMoney(state.result?.totalAmount ?? 0, currency)}`);
       router.refresh();
     }
-  }, [state.success, state.result, router, currency]);
+  }, [state.success, state.result, router]);
 
   const filteredProducts = products.filter(
     (p) =>
@@ -270,6 +332,14 @@ export function POSInterface({ products, currency }: POSInterfaceProps) {
           </button>
         </form>
       </div>
+
+      {confirmedSale && (
+        <SaleConfirmationModal
+          result={confirmedSale}
+          currency={currency}
+          onClose={() => setConfirmedSale(null)}
+        />
+      )}
     </div>
   );
 }

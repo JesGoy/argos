@@ -267,6 +267,30 @@ const NAV_ITEMS: NavItem[] = [
       </svg>
     ),
   },
+  {
+    key: "dte",
+    label: "Boleta Electrónica",
+    href: "/settings/dte",
+    description: "Conexión con el SII (Openfactura)",
+    roles: ["admin"],
+    icon: (
+      <svg
+        aria-hidden
+        className="h-5 w-5"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M7 3h10a1 1 0 0 1 1 1v16l-2.5-1.5L13 20l-1.5-1.5L10 20l-2.5-1.5L5 20V4a1 1 0 0 1 1-1Z"
+        />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8.5 8h7M8.5 11.5h7M8.5 15h4" />
+      </svg>
+    ),
+  },
 ];
 
 const ROLE_LABEL: Record<SessionData["role"], string> = {

@@ -9,6 +9,7 @@ import {
   uniqueIndex,
   jsonb,
   boolean,
+  type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 
 /**
@@ -409,3 +410,107 @@ export const subscriptionTable = pgTable(
 
 export type SubscriptionRow = typeof subscriptionTable.$inferSelect;
 export type SubscriptionInsert = typeof subscriptionTable.$inferInsert;
+
+/**
+ * DteConfig Table
+ * One row per organization (1:1). DTE issuance is opt-in: some organizations
+ * already comply another way (e.g. a Transbank terminal whose card vouchers
+ * double as the boleta) and simply leave `enabled = false`.
+ */
+export const dteConfigTable = pgTable(
+  'DteConfig',
+  {
+    id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+    organizationId: integer('organization_id')
+      .notNull()
+      .unique()
+      .references(() => organizationTable.id, { onDelete: 'cascade' }),
+    enabled: boolean('enabled').notNull().default(false),
+    // 'openfactura' today. Text (not an enum) so a future second provider
+    // never needs an ALTER TYPE step — see the 'waste' migration precedent.
+    provider: text('provider').notNull().default('openfactura'),
+    // 'certificacion' | 'produccion'. Same reasoning as `provider`.
+    environment: text('environment').notNull().default('certificacion'),
+    apiKeyEncrypted: text('api_key_encrypted'),
+    rutEmisor: varchar('rut_emisor', { length: 12 }),
+    razonSocial: varchar('razon_social', { length: 200 }),
+    giro: varchar('giro', { length: 200 }),
+    // SII economic activity code (e.g. "479100") — required by factura/NC, not by boletas.
+    acteco: varchar('acteco', { length: 10 }),
+    direccion: varchar('direccion', { length: 200 }),
+    comuna: varchar('comuna', { length: 100 }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    organizationIdx: index('dte_config_organization_id_idx').on(table.organizationId),
+  })
+);
+
+export type DteConfigRow = typeof dteConfigTable.$inferSelect;
+export type DteConfigInsert = typeof dteConfigTable.$inferInsert;
+
+/**
+ * DteDocument Table
+ * Outbox: one row per intended SII document (boleta or nota de crédito),
+ * created once and updated in place across retries. Amounts are whole CLP
+ * pesos, not cents — see the domain comment in DteDocument.ts.
+ */
+export const dteDocumentTable = pgTable(
+  'DteDocument',
+  {
+    id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+    organizationId: integer('organization_id')
+      .notNull()
+      .references(() => organizationTable.id, { onDelete: 'cascade' }),
+    saleId: integer('sale_id')
+      .notNull()
+      .references(() => saleTable.id, { onDelete: 'restrict' }),
+    // SII document type code: 39 boleta afecta, 41 boleta exenta, 61 nota de crédito.
+    type: integer('type').notNull(),
+    // pending | sent | accepted | rejected | failed | cancelled. Text, not an
+    // enum: this outbox status set is still evolving (see DteConstants).
+    status: text('status').notNull().default('pending'),
+    environment: text('environment').notNull(),
+    folio: integer('folio'),
+    token: text('token'),
+    // Printable representation (base64), set the moment the provider accepts
+    // the document. ~190KB per document (Openfactura's own estimate) — fine
+    // in Postgres text for MVP volume; an object-storage offload is a future
+    // optimization, not needed for correctness today.
+    pdfBase64: text('pdf_base64'),
+    netAmount: integer('net_amount').notNull(),
+    taxAmount: integer('tax_amount').notNull(),
+    totalAmount: integer('total_amount').notNull(),
+    // Self-reference: for a Nota de Crédito, the boleta document it cancels.
+    referencesDocumentId: integer('references_document_id').references(
+      (): AnyPgColumn => dteDocumentTable.id,
+      { onDelete: 'set null' }
+    ),
+    idempotencyKey: varchar('idempotency_key', { length: 100 }).notNull(),
+    attempts: integer('attempts').notNull().default(0),
+    lastError: text('last_error'),
+    providerResponse: jsonb('provider_response'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    organizationIdx: index('dte_document_organization_id_idx').on(table.organizationId),
+    saleIdx: index('dte_document_sale_id_idx').on(table.saleId),
+    statusIdx: index('dte_document_status_idx').on(table.status),
+    referencesDocumentIdx: index('dte_document_references_document_id_idx').on(
+      table.referencesDocumentId
+    ),
+    idempotencyKeyIdx: uniqueIndex('dte_document_idempotency_key_idx').on(table.idempotencyKey),
+    // One document row per (org, sale, type): a sale gets at most one boleta
+    // and, if cancelled, at most one nota de crédito.
+    orgSaleTypeIdx: uniqueIndex('dte_document_org_sale_type_idx').on(
+      table.organizationId,
+      table.saleId,
+      table.type
+    ),
+  })
+);
+
+export type DteDocumentRow = typeof dteDocumentTable.$inferSelect;
+export type DteDocumentInsert = typeof dteDocumentTable.$inferInsert;

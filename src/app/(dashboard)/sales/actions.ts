@@ -5,6 +5,7 @@ import { requireRole } from '@/app/lib/auth';
 import { SALES_AUTHORIZED_ROLES } from '@/core/domain/constants/UserConstants';
 import { PRODUCT_COMMAND_SOURCE } from '@/core/domain/constants/ProductConstants';
 import { makeGetSalesReport, makeSalesCommandService } from '@/infra/container/sales';
+import { makeIssueDteForSale } from '@/infra/container/dte';
 import { SalesCommandService } from '@/core/application/usecases/sales/SalesCommandService';
 
 export async function getSalesAction(filters?: {
@@ -46,5 +47,27 @@ export async function cancelSaleAction(saleId: string): Promise<CancelSaleState>
   } catch (err) {
     const error = err as Error;
     return { error: error.message || 'No se pudo cancelar la venta' };
+  }
+}
+
+export interface RetryDteState {
+  success?: boolean;
+  error?: string;
+}
+
+/**
+ * Server Action: manually nudge a stuck boleta (pending/failed/sent). Not a
+ * sale mutation — doesn't go through SalesCommandService — just calls the
+ * same idempotent entrypoint the automatic retry cron uses.
+ */
+export async function retryDteAction(saleId: string): Promise<RetryDteState> {
+  try {
+    const session = await requireRole([...SALES_AUTHORIZED_ROLES]);
+    await makeIssueDteForSale(session.organizationId).execute({ saleId });
+    revalidatePath('/sales');
+    return { success: true };
+  } catch (err) {
+    const error = err as Error;
+    return { error: error.message || 'No se pudo reintentar el envío' };
   }
 }
