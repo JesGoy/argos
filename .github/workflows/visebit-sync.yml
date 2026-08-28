@@ -1,0 +1,288 @@
+# Sincronización del estándar Visebit — el repositorio pide su propia actualización.
+#
+# Hasta 1.11.0 actualizar el estándar de un proyecto era un acto manual de alguien
+# con el ecosistema en su disco. Eso significaba que los repos quedaban atrás sin
+# que nadie se enterara, y que la alineación del equipo dependía de la memoria de
+# una persona. Con esto, el repo se contrasta solo contra el último release y abre
+# el PR él mismo.
+#
+# La política la manda el proyecto, en `standard.policy` de visebit.json:
+#   frozen    -> no hace nada (el script sale antes de tocar un solo archivo)
+#   assisted  -> PR mensual; alguien decide
+#   tracking  -> PR semanal; los PATCH se auto-mergean
+#
+# Requisito: la GitHub App `visebit-bot` instalada en la organizacion, con su
+# Client ID en la variable VISEBIT_APP_CLIENT_ID y su clave privada en el secret
+# VISEBIT_APP_PRIVATE_KEY. Paso a paso: bootstrap/configurar-github.md.
+#
+# OJO con el plan: en GitHub Free, los secrets y variables de ORGANIZACION no son
+# accesibles desde repositorios privados. En ese caso van a nivel de repositorio.
+#
+# Se instala desde el ecosistema (templates/proyecto/visebit-sync.yml).
+
+name: Sincronizar estándar Visebit
+
+on:
+  schedule:
+    # Semanal, lunes a las 12:00 UTC: cadencia de un proyecto `tracking`.
+    # La cadencia es la palanca contra el ruido de PRs — antes que apagar la
+    # sincronización, bajarla (mensual: '0 12 1 * *').
+    - cron: '0 12 * * 1'
+  workflow_dispatch:
+
+# Los permisos efectivos son los de la GitHub App, no los de este bloque: el
+# GITHUB_TOKEN por defecto no se usa para nada que escriba.
+permissions:
+  contents: read
+
+jobs:
+  sincronizar:
+    runs-on: ubuntu-latest
+    steps:
+      # Un secret o variable de organizacion que no llega al repositorio no da
+      # error: se resuelve como cadena vacia. La accion de la App falla entonces
+      # con "Input required and not supplied: app-id", que no dice nada sobre la
+      # causa real. Este paso la nombra.
+      - name: Comprobar que la credencial llegó
+        run: |
+          FALTA=""
+          [ -z "${{ vars.VISEBIT_APP_CLIENT_ID }}" ] && FALTA="$FALTA VISEBIT_APP_CLIENT_ID(variable)"
+          [ -z "${{ secrets.VISEBIT_APP_PRIVATE_KEY }}" ] && FALTA="$FALTA VISEBIT_APP_PRIVATE_KEY(secret)"
+          if [ -n "$FALTA" ]; then
+            echo "::error::La credencial de Visebit no llegó a este repositorio. Falta:$FALTA"
+            echo ""
+            echo "Causas, de la mas probable a la menos:"
+            echo "  1. Plan Free + repositorio privado. Los secrets y variables de ORGANIZACION"
+            echo "     no son accesibles desde repos privados en GitHub Free. Solucion: definirlos"
+            echo "     a nivel de ESTE repositorio (Settings > Secrets and variables > Actions),"
+            echo "     o subir la organizacion a Team."
+            echo "  2. El 'Repository access' de la variable o del secret no incluye este repo."
+            echo "  3. El Client ID se guardo como secret en vez de como variable (va en Variables)."
+            echo ""
+            echo "Detalle: bootstrap/configurar-github.md del ecosistema."
+            exit 1
+          fi
+
+      # El token de la App se genera al vuelo y expira en una hora. Tiene que ir
+      # antes del checkout, porque el checkout lo necesita.
+      - uses: actions/create-github-app-token@v3
+        id: token
+        with:
+          client-id: ${{ vars.VISEBIT_APP_CLIENT_ID }}
+          private-key: ${{ secrets.VISEBIT_APP_PRIVATE_KEY }}
+          owner: visebit-tech
+
+      - uses: actions/checkout@v4
+        with:
+          # Con el GITHUB_TOKEN por defecto, un PR creado por este workflow NO
+          # dispara los workflows del repo: GitHub bloquea el encadenamiento para
+          # evitar bucles. El PR quedaria sin la verificacion de integridad y el
+          # auto-merge "con CI verde" no tendria CI que esperar. Con el token de
+          # la App el PR se comporta como uno humano.
+          token: ${{ steps.token.outputs.token }}
+          persist-credentials: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # GitHub corre `schedule` y muestra `workflow_dispatch` SOLO desde la rama
+      # por defecto del repositorio. Pero la rama contra la que hay que trabajar es
+      # la de integracion que declara el proyecto en workflow.branches.base: en un
+      # repo con `qa` de integracion y `main` de produccion, actualizar el estandar
+      # contra `main` se salta la integracion y va directo a produccion.
+      - name: Situarse en la rama de integración
+        id: base
+        run: |
+          BASE=$(node -e "const m=require('./visebit.json');process.stdout.write(m.workflow?.branches?.base||'')")
+          if [ -z "$BASE" ] || [ "$BASE" = "$GITHUB_REF_NAME" ]; then
+            BASE="$GITHUB_REF_NAME"
+            echo "Rama de trabajo: $BASE (la de este checkout)"
+          else
+            echo "Rama de integración declarada en visebit.json: $BASE"
+            git fetch --depth=1 origin "$BASE"
+            git checkout -B "$BASE" "origin/$BASE"
+          fi
+          echo "rama=$BASE" >> "$GITHUB_OUTPUT"
+
+      - name: Contrastar contra el último release del estándar
+        id: sync
+        env:
+          GITHUB_TOKEN: ${{ steps.token.outputs.token }}
+        run: node .visebit/sincronizar-estandar.mjs
+
+      - name: Resumen
+        run: |
+          echo "Decisión: ${{ steps.sync.outputs.decision }}"
+          echo "Política: ${{ steps.sync.outputs.politica }}"
+          echo "Versión:  ${{ steps.sync.outputs.desde }} -> ${{ steps.sync.outputs.hasta }}"
+
+      # --- Sin cambios: registrar que se contrastó ---------------------------
+      # `checkedAt` no dice cuándo se actualizó el proyecto, sino hace cuánto que
+      # nadie mira si quedó atrás. Si no se commiteara, un proyecto sano y al día
+      # acumularía meses sin contrastar según el tablero, y a los seis meses
+      # aparecería marcado junto a los que sí necesitan atención. Un tablero que
+      # marca a todos entrena al equipo a ignorarlo.
+      - name: Registrar el contraste
+        if: steps.sync.outputs.decision == 'sin-cambios'
+        run: |
+          if git diff --quiet -- visebit.json; then
+            echo "Sin cambios que registrar."
+            exit 0
+          fi
+          git config user.name  "visebit-bot"
+          git config user.email "bot@visebit.cl"
+          git add visebit.json
+          git commit -m "Estándar Visebit: al día en ${{ steps.sync.outputs.hasta }}"
+          git push origin "HEAD:${{ steps.base.outputs.rama }}"
+
+      # --- MAJOR: issue, nunca PR -------------------------------------------
+      # Un MAJOR invalida código conforme al estándar anterior: implica revisar y
+      # posiblemente reescribir lo que ya está, y eso a veces se cotiza. No es una
+      # decisión que tome un cron.
+      - name: Abrir issue de migración (MAJOR)
+        if: steps.sync.outputs.decision == 'issue'
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          DESDE: ${{ steps.sync.outputs.desde }}
+          HASTA: ${{ steps.sync.outputs.hasta }}
+        run: |
+          TITULO="Estándar Visebit $DESDE → $HASTA (MAJOR): requiere decisión"
+          # Idempotencia: un cron mensual no debe acumular issues duplicados.
+          if gh issue list --state open --search "$TITULO in:title" --json title \
+             | grep -qF "$TITULO"; then
+            echo "El issue ya existe. No se duplica."
+            exit 0
+          fi
+          gh issue create --title "$TITULO" --body "$(cat <<EOF
+          El ecosistema publicó el estándar **$HASTA**. Este proyecto está en **$DESDE**.
+
+          Es un salto **MAJOR**: por la definición de SemVer de Visebit, eso significa que
+          una regla nueva **invalida código conforme al estándar anterior**. No se abre un PR
+          automático a propósito — actualizar implica revisar el código existente.
+
+          **Qué hacer:**
+
+          1. Leer el CHANGELOG del ecosistema entre $DESDE y $HASTA.
+          2. Estimar el impacto: \`/visebit-dev:visebit-sync --dry-run\` lista qué archivos del
+             estándar cambian para este repo.
+          3. Decidir cuándo entra. Si el proyecto tiene mantención contratada, puede ser trabajo
+             cotizable; si es propio, puede entrar en el próximo sprint.
+          4. Cuando se decida: \`/visebit-dev:visebit-sync\` o el instalador con \`-Update\`.
+
+          Si este proyecto ya no debería recibir actualizaciones, la respuesta correcta no es
+          cerrar el issue: es declararlo congelado con \`/visebit-dev:visebit-freeze\`.
+          EOF
+          )"
+
+      # --- PATCH / MINOR: pull request ---------------------------------------
+      - name: Abrir PR de actualización
+        if: steps.sync.outputs.decision == 'pr' || steps.sync.outputs.decision == 'pr-vacio'
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          DECISION: ${{ steps.sync.outputs.decision }}
+          BUMP: ${{ steps.sync.outputs.bump }}
+          DESDE: ${{ steps.sync.outputs.desde }}
+          HASTA: ${{ steps.sync.outputs.hasta }}
+          POLITICA: ${{ steps.sync.outputs.politica }}
+        run: |
+          RAMA="visebit/estandar-$HASTA"
+
+          if gh pr list --head "$RAMA" --state open --json number | grep -q '"number"'; then
+            echo "Ya hay un PR abierto para $RAMA. No se duplica."
+            exit 0
+          fi
+
+          git config user.name  "visebit-bot"
+          git config user.email "bot@visebit.cl"
+          git checkout -b "$RAMA"
+          git add -A
+          git commit -m "Estándar Visebit $DESDE -> $HASTA"
+          git push -u origin "$RAMA"
+
+          if [ "$DECISION" = "pr-vacio" ]; then
+            CUERPO=$(cat <<EOF
+          Actualización **sin cambios sustantivos** para este repositorio.
+
+          El ecosistema pasó de $DESDE a $HASTA, pero **ningún archivo del estándar que este
+          proyecto consume cambió** — el salto afecta a otros stacks o a partes del ecosistema
+          que este repo no usa. Este PR solo sube el número de versión.
+
+          Se puede mergear sin leer nada más.
+          EOF
+          )
+          else
+            CUERPO=$(cat <<EOF
+          Actualización del estándar Visebit: **$DESDE → $HASTA** (salto \`$BUMP\`).
+
+          Los archivos de \`docs/standards/\` y la skill de revisión pasan a la versión nueva,
+          y el \`lock\` queda resellado. **No se tocaron** \`CLAUDE.md\`, \`AGENTS.md\` ni el
+          bloque \`workflow\`.
+
+          Revisa el diff de este PR para ver exactamente qué reglas cambiaron.
+          EOF
+          )
+          fi
+
+          gh pr create \
+            --title "Estándar Visebit $DESDE → $HASTA" \
+            --body "$CUERPO" \
+            --head "$RAMA" \
+            --base "${{ steps.base.outputs.rama }}"
+
+      # --- Informe de impacto: solo MINOR ------------------------------------
+      # Un PR que dice "1.9 -> 1.10" nadie sabe si mergearlo. Uno que dice qué
+      # hallazgos nuevos genera sobre ESTE código se decide en dos minutos.
+      # Solo en MINOR: por definición un PATCH no cambia ninguna regla.
+      - name: Informe de impacto
+        if: steps.sync.outputs.decision == 'pr' && steps.sync.outputs.bump == 'minor' && vars.VISEBIT_IMPACTO == 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          DESDE: ${{ steps.sync.outputs.desde }}
+          HASTA: ${{ steps.sync.outputs.hasta }}
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "Sin ANTHROPIC_API_KEY: se omite el informe de impacto."
+            exit 0
+          fi
+          npm install -g @anthropic-ai/claude-code >/dev/null 2>&1
+          PROMPT=$(cat <<'EOF'
+          Usa la skill visebit-code-review de este repositorio para revisar el código
+          existente contra el estándar recién actualizado en docs/standards/.
+
+          El objetivo NO es una revisión completa: es responder una sola pregunta —
+          ¿qué hallazgos aparecen ahora que no existían con la versión anterior del
+          estándar? Céntrate en las reglas que cambiaron en este diff.
+
+          Devuelve markdown, máximo 25 líneas:
+          - Una frase con la regla o reglas nuevas que importan.
+          - Una tabla: archivo:línea | severidad | qué viola.
+          - Un total: N hallazgos nuevos, de los cuales M bloqueantes.
+          Si no aparece ningún hallazgo nuevo, dilo en una línea y no inventes nada.
+          EOF
+          )
+          claude -p "$PROMPT" --allowed-tools "Read,Glob,Grep,Bash(git diff:*)" > impacto.md || exit 0
+          {
+            echo "## Impacto sobre este repositorio"
+            echo ""
+            cat impacto.md
+            echo ""
+            echo "_Generado automáticamente contra el estándar $HASTA. Verifica antes de actuar._"
+          } > comentario.md
+          gh pr comment "visebit/estandar-$HASTA" --body-file comentario.md
+
+      # --- tracking: auto-merge solo de lo que no puede romper nada ----------
+      # PATCH es, por definición de Visebit, redacción/ejemplos/typos: no puede
+      # invalidar código. Un MINOR agrega una regla y sí puede — ese siempre lo
+      # mira una persona, incluso en un proyecto propio.
+      - name: Auto-merge (tracking, PATCH o actualización vacía)
+        if: >-
+          steps.sync.outputs.politica == 'tracking' &&
+          (steps.sync.outputs.decision == 'pr-vacio' ||
+           (steps.sync.outputs.decision == 'pr' && steps.sync.outputs.bump == 'patch'))
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          HASTA: ${{ steps.sync.outputs.hasta }}
+        run: gh pr merge "visebit/estandar-$HASTA" --squash --auto || true

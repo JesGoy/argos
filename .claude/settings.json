@@ -1,0 +1,10 @@
+{
+  "extraKnownMarketplaces": {
+    "visebit": {
+      "source": { "source": "github", "repo": "visebit-tech/Visebit" }
+    }
+  },
+  "enabledPlugins": {
+    "visebit-dev@visebit": true
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": [
+    "docs/standards/system-prompt-visebit.md",
+    "docs/standards/estandares-desarrollo-visebit.md",
+    "docs/standards/normas-de-codigo.md",
+    "docs/standards/stacks/nextjs-typescript.md"
+  ],
+  "permission": {
+    "skill": {
+      "*": "allow"
+    }
+  }
+}

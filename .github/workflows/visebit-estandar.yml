@@ -1,0 +1,30 @@
+# Verificación del estándar Visebit.
+#
+# Contrasta docs/standards/ y la skill de revisión contra los hashes sellados en
+# el bloque `standard` de visebit.json. No necesita secrets ni acceso al
+# ecosistema: compara el repositorio consigo mismo.
+#
+# Se instala desde el ecosistema Visebit (templates/proyecto/visebit-estandar.yml).
+# Especificación: docs/standards/contrato-estandar.md
+
+name: Estándar Visebit
+
+on:
+  pull_request:
+  push:
+    branches: [main, master, qa, develop]
+  workflow_dispatch:
+
+jobs:
+  integridad:
+    name: Integridad del estándar
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Verificar que el estándar no fue modificado dentro del proyecto
+        run: node .visebit/verificar-estandar.mjs

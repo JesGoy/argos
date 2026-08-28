@@ -1,0 +1,87 @@
+{
+  "$comment": "Manifiesto del ecosistema Visebit. 'standard' declara con que version se juzga este repo y si esa version debe moverse (ver docs/standards/contrato-estandar.md). 'workflow' es el contrato operativo que leen las skills del flujo (visebit-start-task, visebit-code-review, visebit-test-plan, visebit-pr, visebit-explain-changes): sin el, adivinan la rama base y los comandos (ver docs/standards/contrato-workflow.md).",
+  "project": "argos",
+  "stack": "nextjs-typescript",
+  "bootstrappedAt": "2026-08-28",
+  "standardsPath": "docs/standards",
+  "standard": {
+    "version": "1.16.0",
+    "policy": "tracking",
+    "source": "visebit-tech/Visebit",
+    "checkedAt": "2026-08-28",
+    "frozen": null,
+    "lock": {
+      ".claude/skills/visebit-code-review/SKILL.md": "sha256-8ea10ecf82e10707c7cce48371e34cd87a44b03dfb01c0de5019903d7ec69976",
+      ".visebit/verificar-estandar.mjs": "sha256-83c2a99be75c8f61b1988b21fb83c2b0ca8d2aba6f6b0c362bcb61dda7280a37",
+      "docs/standards/contrato-estandar.md": "sha256-7e22f50ddd04ce78fda11e9e6762d1e7dde0ecae97edcd4a71e00f769f87b29b",
+      "docs/standards/contrato-workflow.md": "sha256-ebcdfacfd2382bd0c61fcc944b4511c04fc51f7047ef4cea033f5a2e661c3790",
+      "docs/standards/estandares-desarrollo-visebit.md": "sha256-240243a382fbc91f4503256f1609f8085b506a0a0afec670627dfa4f24b3ae92",
+      "docs/standards/normas-de-codigo.md": "sha256-b81510329ee4bf42fc043624f81931b85c25db6772c314789b44babee746a820",
+      "docs/standards/stacks/nextjs-typescript.md": "sha256-80fd1b0d240048967df51eb274b75d3393b759f0cbe7c20eea8f173bb2de79dd",
+      "docs/standards/system-prompt-visebit.md": "sha256-3eb3971e9621900d4455ff243fbafeb2c8d2dde416c05640a2a7e30f002959ad"
+    }
+  },
+  "workflow": {
+    "ticketing": {
+      "provider": "jira",
+      "keys": [
+        "VISEBIT"
+      ],
+      "urlPattern": "https://visebit.atlassian.net/browse/{key}"
+    },
+    "branches": {
+      "base": "develop",
+      "hotfixBase": "main",
+      "prefixes": {
+        "bug": "bugfix",
+        "default": "feature"
+      }
+    },
+    "worktrees": {
+      "enabled": false,
+      "path": null,
+      "copyOnCreate": [],
+      "postCreate": []
+    },
+    "commands": {
+      "dev": "npm run dev",
+      "build": "npm run build",
+      "test": "npm run test",
+      "lint": "npm run lint",
+      "typecheck": null,
+      "migrate": "npm run drizzle:migrate"
+    },
+    "layers": [
+      {
+        "glob": "src/core/domain/**",
+        "layer": "dominio"
+      },
+      {
+        "glob": "src/core/application/**",
+        "layer": "aplicacion"
+      },
+      {
+        "glob": "src/infra/**",
+        "layer": "infraestructura"
+      },
+      {
+        "glob": "src/app/**",
+        "layer": "presentacion"
+      },
+      {
+        "glob": "src/components/**",
+        "layer": "presentacion"
+      }
+    ],
+    "ignoreInReview": [
+      "*.lock",
+      "package-lock.json",
+      "dist/**",
+      "build/**",
+      "coverage/**",
+      ".next/**",
+      "drizzle/meta/**",
+      "public/**"
+    ]
+  }
+}
